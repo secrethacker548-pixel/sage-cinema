@@ -1,0 +1,10 @@
+node_modules
+.next
+dist
+old_assets
+.netlify
+public/*.apk
+public/downloads
+.env
+.env.*
+!.env.example
