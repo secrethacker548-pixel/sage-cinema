@@ -305,7 +305,7 @@ export default function MovieDetailPage() {
       <main className="detail-shell">
         <section className="detail-player-column">
           <div className="nebula-player">
-            <div className="player-chrome">
+            <div className={cn('player-chrome', isPlaying && 'player-chrome-live')}>
               <span className="player-state">
                 <span className={cn('player-state-dot', isPlaying ? 'is-live' : 'is-ready')} />
                 {isPlaying ? 'Live playback' : 'Ready to play'}
@@ -356,6 +356,9 @@ export default function MovieDetailPage() {
                     src={embedUrl}
                     className="player-embed"
                     title={`Watch ${title}`}
+                    width="100%"
+                    height="100%"
+                    loading="eager"
                     allow="autoplay; fullscreen *; encrypted-media; picture-in-picture"
                     allowFullScreen
                     referrerPolicy="origin"

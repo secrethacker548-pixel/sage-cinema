@@ -223,8 +223,9 @@ a { color: inherit; text-decoration: none; }
 .nebula-orbit span { width: 5px; height: 5px; border-radius: 50%; background: var(--detail-lime); box-shadow: 0 0 14px var(--detail-lime); }
 .detail-shell { position: relative; z-index: 1; display: grid; gap: 22px; width: min(1500px, calc(100% - 32px)); margin: 0 auto; }
 .detail-player-column { min-width: 0; }
-.nebula-player { position: relative; aspect-ratio: 16 / 10; overflow: hidden; border: 1px solid rgba(198, 207, 255, .2); border-radius: 24px; background: #05070d; box-shadow: 0 25px 70px rgba(0, 0, 0, .36), 0 0 0 8px rgba(16, 21, 39, .3); }
+.nebula-player { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid rgba(198, 207, 255, .2); border-radius: 24px; background: radial-gradient(circle at 50% 40%, #141b35, #05070d 64%); box-shadow: 0 25px 70px rgba(0, 0, 0, .36), 0 0 0 8px rgba(16, 21, 39, .3); }
 .player-chrome { position: absolute; z-index: 4; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 15px 17px; color: #dbe2ff; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; background: linear-gradient(180deg, rgba(4, 6, 14, .82), transparent); }
+.player-chrome-live { opacity: 0; pointer-events: none; }
 .player-state { display: inline-flex; align-items: center; gap: 8px; }
 .player-state-dot, .settings-dot, .source-legend-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #77829f; }
 .player-state-dot.is-ready { background: var(--detail-lime); box-shadow: 0 0 12px rgba(216, 255, 99, .6); }
@@ -242,7 +243,7 @@ a { color: inherit; text-decoration: none; }
 .idle-title-lockup { position: absolute; left: 25px; right: 25px; bottom: 25px; display: grid; gap: 5px; }
 .idle-title-lockup span { color: var(--detail-lime); font-size: 10px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; }
 .idle-title-lockup strong { max-width: 72%; color: white; font-size: clamp(22px, 3vw, 44px); line-height: .98; letter-spacing: -.055em; }
-.player-embed { border: 0; background: #000; }
+.player-embed { display: block; width: 100%; height: 100%; min-width: 100%; min-height: 100%; border: 0; background: #000; }
 .player-close { position: absolute; z-index: 5; top: 47px; right: 17px; display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid rgba(255, 255, 255, .25) !important; border-radius: 50%; color: white; background: rgba(7, 9, 18, .65); cursor: pointer; backdrop-filter: blur(12px); transition: .2s ease; }
 .player-close:hover { color: #131722; background: var(--detail-lime); }
 .player-overlay { z-index: 3; display: grid; place-items: center; align-content: center; gap: 14px; padding: 28px; color: #e9edff; text-align: center; background: rgba(5, 7, 13, .9); backdrop-filter: blur(13px); }
@@ -390,7 +391,7 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 959px) {
   .nebula-nav { min-height: 68px; }
   .detail-shell { width: min(720px, calc(100% - 28px)); }
-  .nebula-player { aspect-ratio: 16 / 10; }
+  .nebula-player { aspect-ratio: 16 / 9; }
 }
 
 @media (max-width: 620px) {
@@ -404,7 +405,7 @@ a { color: inherit; text-decoration: none; }
   .nebula-orbit { width: 22px; height: 22px; }
   .nebula-orbit::before { width: 30px; height: 11px; }
   .detail-shell { width: calc(100% - 24px); gap: 15px; }
-  .nebula-player { aspect-ratio: 4 / 3; border-radius: 18px; box-shadow: 0 18px 40px rgba(0, 0, 0, .3); }
+  .nebula-player { aspect-ratio: 16 / 10; border-radius: 18px; box-shadow: 0 18px 40px rgba(0, 0, 0, .3); }
   .player-chrome { padding: 12px; font-size: 9px; }
   .player-format { font-size: 9px; }
   .player-close { top: 39px; right: 11px; width: 34px; height: 34px; }
