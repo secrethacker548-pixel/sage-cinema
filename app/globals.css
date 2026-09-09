@@ -472,6 +472,25 @@ a { color: inherit; text-decoration: none; }
 @keyframes nebula-spin { to { transform: rotate(360deg); } }
 @keyframes nebula-pulse { 50% { opacity: .45; transform: scale(.78); } }
 
+.sage-loader { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; align-content: center; gap: 18px; overflow: hidden; color: var(--paper); background: radial-gradient(circle at 50% 38%, rgba(83, 229, 255, .1), transparent 24%), radial-gradient(circle at 50% 58%, rgba(139, 92, 255, .16), transparent 38%), #080a12; }
+.sage-loader::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .16; background-image: linear-gradient(rgba(255, 255, 255, .12) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .12) 1px, transparent 1px); background-size: 72px 72px; mask-image: radial-gradient(circle at center, #000, transparent 68%); }
+.sage-loader-mark { position: relative; display: grid; place-items: center; width: 124px; height: 124px; }
+.sage-loader-mark::before { content: ''; position: absolute; inset: 6px; border: 1px solid rgba(216, 255, 99, .34); border-radius: 50%; animation: sage-loader-orbit 4.5s linear infinite; }
+.sage-loader-mark::after { content: ''; position: absolute; width: 7px; height: 7px; top: 4px; left: 50%; border-radius: 50%; background: var(--detail-lime); box-shadow: 0 0 16px var(--detail-lime); transform: translateX(-50%); transform-origin: 0 58px; animation: sage-loader-orbit 2.2s linear infinite; }
+.sage-loader-mark img { position: relative; z-index: 1; width: 84px; height: 84px; border-radius: 22px; box-shadow: 0 0 0 8px rgba(216, 255, 99, .04), 0 18px 55px rgba(0, 0, 0, .45); animation: sage-loader-breathe 1.8s ease-in-out infinite; }
+.sage-loader-sweep { position: absolute; z-index: 2; width: 150px; height: 1px; background: linear-gradient(90deg, transparent, rgba(99, 229, 255, .9), transparent); transform: rotate(-25deg); animation: sage-loader-sweep 2.4s ease-in-out infinite; }
+.sage-loader-copy { position: relative; z-index: 1; display: grid; justify-items: center; gap: 7px; text-align: center; }
+.sage-loader-copy > span { color: var(--paper); font-size: 11px; font-weight: 800; letter-spacing: .22em; }
+.sage-loader-copy > span b { color: var(--cyan); font-weight: 800; }
+.sage-loader-copy strong { color: var(--paper); font-family: var(--display-font); font-size: clamp(18px, 3vw, 25px); letter-spacing: -.04em; }
+.sage-loader-copy small { color: var(--muted); font-size: 12px; letter-spacing: .08em; }
+.sage-loader-progress { position: relative; z-index: 1; display: block; width: min(180px, 52vw); height: 3px; overflow: hidden; border-radius: 999px; background: rgba(186, 197, 255, .14); }
+.sage-loader-progress i { display: block; width: 42%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--cyan), var(--lime)); animation: sage-loader-progress 1.6s ease-in-out infinite; }
+@keyframes sage-loader-orbit { to { transform: rotate(360deg); } }
+@keyframes sage-loader-breathe { 0%, 100% { transform: scale(.96); } 50% { transform: scale(1.04); } }
+@keyframes sage-loader-sweep { 0%, 100% { opacity: 0; transform: translateX(-42px) rotate(-25deg); } 45%, 60% { opacity: 1; } 75% { opacity: 0; transform: translateX(42px) rotate(-25deg); } }
+@keyframes sage-loader-progress { 0% { transform: translateX(-130%); } 55%, 100% { transform: translateX(300%); } }
+
 @media (min-width: 960px) {
   .detail-shell { grid-template-columns: minmax(0, 1.34fr) minmax(380px, .66fr); align-items: start; }
 }

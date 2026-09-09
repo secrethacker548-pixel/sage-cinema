@@ -28,7 +28,11 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
   manifest: '/manifest.json',
   icons: {
-    icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon.svg', type: 'image/svg+xml' },
+    ],
+    shortcut: ['/favicon.ico'],
     apple: [{ url: '/icon.svg', type: 'image/svg+xml' }],
   },
   appleWebApp: {

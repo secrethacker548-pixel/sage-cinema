@@ -30,6 +30,7 @@ import type { TMDBMovie } from '../../../../types/tmdb';
 import { cn } from '../../../../lib/utils';
 import { AdsterraNativeBanner, openAdsterraDirectLink } from '../../../../components/Adsterra';
 import UnifiedPlayer from '../../../../components/UnifiedPlayer';
+import SageLoader from '../../../../components/SageLoader';
 import type { UnifiedSource } from '../../../../lib/unifiedSources';
 import {
   DEFAULT_LANG,
@@ -311,12 +312,7 @@ export default function MovieDetailPage() {
   };
 
   if (isLoading && !movie) {
-    return (
-      <div className="nebula-loading">
-        <div className="nebula-loader-ring" />
-        <p>Opening the screening room</p>
-      </div>
-    );
+    return <SageLoader label="Opening the screening room" detail="Preparing your feature" />;
   }
 
   if (error && !movie) {

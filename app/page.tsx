@@ -19,6 +19,7 @@ import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } fr
 import { useSearch } from '../lib/hooks/useSearch';
 import { useWatchHistory } from '../lib/hooks/useWatchHistory';
 import MiniPlayer from '../components/MiniPlayer';
+import SageLoader from '../components/SageLoader';
 import { clearActivePlayback, readActivePlayback, type ActivePlayback } from '../lib/activePlayback';
 import type { TMDBMovie } from '../types/tmdb';
 
@@ -309,6 +310,10 @@ export default function Home() {
   };
 
   const resetHeroPointer = () => setHeroTilt({ x: 0, y: 0 });
+
+  if (isLoading && !error) {
+    return <SageLoader label="Tuning the projector" detail="Loading the living catalog" />;
+  }
 
   return (
     <main className="cinema-app">
