@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useCookieConsent } from '../lib/cookieConsent';
 import { useAppContext } from '../lib/context/AppContext';
 
 interface AdsterraBannerProps {
@@ -9,11 +10,12 @@ interface AdsterraBannerProps {
 
 export default function AdsterraBanner({ className = '' }: AdsterraBannerProps) {
   const { hasDownloadedApp } = useAppContext();
+  const consent = useCookieConsent();
   const isDownloaded =
     hasDownloadedApp ||
     (typeof window !== 'undefined' && localStorage.getItem('sagemovies_app_downloaded') === 'true');
 
-  if (isDownloaded) return null;
+  if (isDownloaded || consent?.advertising !== true) return null;
   const iframeHtml = `
     <!DOCTYPE html>
     <html>

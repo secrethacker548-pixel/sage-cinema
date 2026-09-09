@@ -19,6 +19,13 @@ export interface UnifiedSource {
   provider: string;
 }
 
+export interface UnifiedSubtitle {
+  id: string;
+  lang: string;
+  language: string;
+  url: string;
+}
+
 interface ResolveSourceOptions {
   type: 'movie' | 'tv';
   id: string;
@@ -134,6 +141,13 @@ export function buildMediaProxyUrl(remoteUrl: string, expires = Date.now() + PRO
   return `/api/media-proxy?url=${encodeURIComponent(remoteUrl)}&expires=${expires}&sig=${signature}`;
 }
 
+export function buildSubtitleProxyUrl(remoteUrl: string, expires = Date.now() + PROXY_EXPIRY_MS) {
+  const signature = createHmac('sha256', getProxySecret())
+    .update(`${remoteUrl}|${expires}`)
+    .digest('base64url');
+  return `/api/subtitles/file?url=${encodeURIComponent(remoteUrl)}&expires=${expires}&sig=${signature}`;
+}
+
 export function isValidMediaProxySignature(remoteUrl: string, expiresValue: string, signature: string) {
   const expires = Number(expiresValue);
   if (!remoteUrl || !Number.isFinite(expires) || expires < Date.now() || !signature) return false;
@@ -214,7 +228,8 @@ export async function resolveUnifiedSources(options: ResolveSourceOptions) {
   );
 
   const sources: UnifiedSource[] = [];
-  const subtitles: Array<{ lang?: string; language?: string; url: string }> = [];
+  const subtitles: UnifiedSubtitle[] = [];
+  const seenSubtitleUrls = new Set<string>();
   const seenUrls = new Set<string>();
 
   results.forEach((result) => {
@@ -222,8 +237,14 @@ export async function resolveUnifiedSources(options: ResolveSourceOptions) {
     const { resolver, payload } = result.value;
     (payload.subtitles || []).forEach((subtitle) => {
       const url = String(subtitle.url || '');
-      if (url && !subtitles.some((item) => item.url === url)) {
-        subtitles.push({ lang: String(subtitle.lang || ''), language: String(subtitle.language || ''), url });
+      if (url && !seenSubtitleUrls.has(url)) {
+        seenSubtitleUrls.add(url);
+        subtitles.push({
+          id: `subtitle-${subtitles.length + 1}`,
+          lang: String(subtitle.lang || ''),
+          language: String(subtitle.language || ''),
+          url: buildMediaProxyUrl(url),
+        });
       }
     });
     (payload.sources || []).forEach((source, index) => {

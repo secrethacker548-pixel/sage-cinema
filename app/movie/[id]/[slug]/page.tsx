@@ -31,7 +31,8 @@ import { getMovieDetails } from '../../../../lib/moviePrefetch';
 import { AdsterraNativeBanner, openAdsterraDirectLink } from '../../../../components/Adsterra';
 import UnifiedPlayer from '../../../../components/UnifiedPlayer';
 import SageLoader from '../../../../components/SageLoader';
-import type { UnifiedSource } from '../../../../lib/unifiedSources';
+import { searchOnlineCaptions } from '../../../../lib/captionSearch';
+import type { UnifiedSource, UnifiedSubtitle } from '../../../../lib/unifiedSources';
 import {
   DEFAULT_LANG,
   DEFAULT_SERVER,
@@ -58,6 +59,7 @@ export default function MovieDetailPage() {
   const [lang, setLang] = useState(DEFAULT_LANG);
   const [embedUrl, setEmbedUrl] = useState('');
   const [playbackSources, setPlaybackSources] = useState<UnifiedSource[]>([]);
+  const [playbackSubtitles, setPlaybackSubtitles] = useState<UnifiedSubtitle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,12 +96,13 @@ export default function MovieDetailPage() {
       embedUrl: embedUrl || playbackSources[0]?.playbackUrl || '',
       playerMode: playbackSources.length > 0 ? 'native' : 'embed',
       sources: playbackSources,
+      subtitles: playbackSubtitles,
       server,
       lang,
       season: selectedSeason,
       episode: selectedEpisode,
     });
-  }, [movie, isPlaying, embedUrl, playbackSources, server, lang, selectedSeason, selectedEpisode]);
+  }, [movie, isPlaying, embedUrl, playbackSources, playbackSubtitles, server, lang, selectedSeason, selectedEpisode]);
 
   useEffect(() => {
     persistActivePlayback();
@@ -190,6 +193,7 @@ export default function MovieDetailPage() {
     setSelectedEpisode(storedPlayback.episode || 1);
     setEmbedUrl(storedPlayback.embedUrl);
     setPlaybackSources(storedPlayback.sources || []);
+    setPlaybackSubtitles(storedPlayback.subtitles || []);
     setIsPlaying(true);
   }, [movie]);
 
@@ -215,6 +219,7 @@ export default function MovieDetailPage() {
 
       if (data.player !== 'unified' || !data.sources?.length) {
         setPlaybackSources([]);
+        setPlaybackSubtitles([]);
         setEmbedUrl('');
         setError(data.error || 'Clean playback is not available for this title yet. Try another source.');
         if (!isPlaying) setIsPlaying(false);
@@ -222,6 +227,7 @@ export default function MovieDetailPage() {
       }
 
       setPlaybackSources(data.sources);
+      setPlaybackSubtitles(data.subtitles || []);
       setEmbedUrl(data.sources[0]?.playbackUrl || '');
       addToHistory(movie);
       if (type === 'tv') markWatched(movie.id, seasonNumber, episodeNumber);
@@ -293,6 +299,7 @@ export default function MovieDetailPage() {
     setIsPlaying(false);
     setEmbedUrl('');
     setPlaybackSources([]);
+    setPlaybackSubtitles([]);
     setShowUpNext(false);
     clearActivePlayback();
   };
@@ -401,6 +408,9 @@ export default function MovieDetailPage() {
                     title={title}
                     poster={backdropPath ? `${IMG_URL}${backdropPath}` : undefined}
                     sources={playbackSources}
+                    subtitles={playbackSubtitles}
+                    progressKey={`${movie.first_air_date ? 'tv' : 'movie'}:${movie.id}`}
+                    onSearchCaptions={() => searchOnlineCaptions({ movie, lang, season: selectedSeason, episode: selectedEpisode })}
                     autoPlay
                     onClose={handleClosePlayer}
                     onRefresh={() => loadVideoSource(server, lang)}

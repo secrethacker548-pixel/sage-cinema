@@ -6,10 +6,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowUpRight,
   AtSign,
+  ChevronUp,
   ChevronLeft,
   ChevronRight,
   Command,
   Coffee,
+  Eye,
   Film,
   Github,
   Info,
@@ -28,8 +30,12 @@ import { useAppContext } from '../lib/context/AppContext';
 import { preloadMovieImage, prefetchMovieDetails } from '../lib/moviePrefetch';
 import MiniPlayer from '../components/MiniPlayer';
 import MovieDetailModal from '../components/MovieDetailModal';
+import { CookieSettingsButton } from '../components/CookieConsent';
 import SageLoader from '../components/SageLoader';
 import { clearActivePlayback, readActivePlayback, type ActivePlayback } from '../lib/activePlayback';
+import { EMPTY_SITE_STATS, recordMovieView, recordSiteVisit, type SiteStats } from '../lib/siteStats';
+import { readAllWatchProgress, type WatchProgressMap } from '../lib/watchProgress';
+import { COOKIE_CONSENT_EVENT, hasCookieConsent } from '../lib/cookieConsent';
 import type { TMDBMovie } from '../types/tmdb';
 
 const IMAGE_URL = 'https://image.tmdb.org/t/p/original';
@@ -59,6 +65,12 @@ const yearOf = (movie: TMDBMovie) =>
 const mediaTypeOf = (movie: TMDBMovie) =>
   movie.media_type || (movie.first_air_date ? 'tv' : 'movie');
 
+function formatCount(value: number) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 100_000 ? 0 : 1)}K`;
+  return value.toLocaleString();
+}
+
 function movieSlug(movie: TMDBMovie) {
   return titleOf(movie)
     .toLowerCase()
@@ -70,13 +82,21 @@ function Poster({
   movie,
   index,
   onSelect,
+  views = 0,
+  progress,
   priority = false,
 }: {
   movie: TMDBMovie;
   index: number;
   onSelect: (movie: TMDBMovie) => void;
+  views?: number;
+  progress?: { position: number; duration: number };
   priority?: boolean;
 }) {
+  const progressPercent = progress && progress.duration > 0
+    ? Math.min(100, Math.max(0, (progress.position / progress.duration) * 100))
+    : 0;
+
   return (
     <motion.button
       type="button"
@@ -106,6 +126,11 @@ function Poster({
           </span>
         )}
         <span className="poster-vignette" />
+        {progress && progress.duration > 0 && (
+          <span className="shelf-progress" aria-label={`${Math.round(progressPercent)}% watched`}>
+            <i style={{ width: `${progressPercent}%` }} />
+          </span>
+        )}
         <span className="poster-rating">
           <Star size={12} fill="currentColor" /> {movie.vote_average?.toFixed(1) || '—'}
         </span>
@@ -118,6 +143,7 @@ function Poster({
         <span>
           {yearOf(movie)} <i /> {mediaTypeOf(movie) === 'tv' ? 'Series' : 'Film'}
         </span>
+        <span className="shelf-views"><Eye size={11} /> {formatCount(views)} views</span>
       </span>
     </motion.button>
   );
@@ -130,6 +156,8 @@ function Section({
   note,
   items,
   onSelect,
+  viewCounts,
+  progressMap,
 }: {
   id: string;
   eyebrow: string;
@@ -137,6 +165,8 @@ function Section({
   note: string;
   items: TMDBMovie[];
   onSelect: (movie: TMDBMovie) => void;
+  viewCounts: Record<string, number>;
+  progressMap: WatchProgressMap;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
   const [canScrollPrev, setCanScrollPrev] = useState(false);
@@ -215,7 +245,15 @@ function Section({
       <div className="shelf-viewport">
         <div className="shelf-track" ref={rowRef}>
           {items.slice(0, 24).map((movie, index) => (
-            <Poster key={`${movie.id}-${index}`} movie={movie} index={index} priority={id === 'films' && index < 5} onSelect={onSelect} />
+            <Poster
+              key={`${movie.id}-${index}`}
+              movie={movie}
+              index={index}
+              priority={id === 'films' && index < 5}
+              onSelect={onSelect}
+              views={viewCounts[String(movie.id)] || 0}
+              progress={id === 'continue' ? progressMap[`${mediaTypeOf(movie)}:${movie.id}`] : undefined}
+            />
           ))}
         </div>
       </div>
@@ -235,11 +273,38 @@ export default function Home() {
   const [heroTilt, setHeroTilt] = useState({ x: 0, y: 0 });
   const [scrollY, setScrollY] = useState(0);
   const [activePlayback, setActivePlayback] = useState<ActivePlayback | null>(null);
+  const [siteStats, setSiteStats] = useState<SiteStats>(EMPTY_SITE_STATS);
+  const [watchProgress, setWatchProgress] = useState<WatchProgressMap>({});
   const { history, addToHistory } = useWatchHistory();
   const { genres } = useAppContext();
   const { query, setQuery, results, isSearching } = useSearch(450);
+  const setQueryRef = useRef(setQuery);
 
   const featured = collections.trending[featuredIndex] || collections.latest[0] || null;
+
+  useEffect(() => {
+    // Browser storage is the source of truth for Continue Watching progress.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setWatchProgress(readAllWatchProgress());
+    let active = true;
+    const syncAnalytics = () => {
+      if (!hasCookieConsent('analytics')) {
+        setSiteStats(EMPTY_SITE_STATS);
+        return;
+      }
+      recordSiteVisit()
+        .then((stats) => {
+          if (active) setSiteStats(stats);
+        })
+        .catch(() => undefined);
+    };
+    syncAnalytics();
+    window.addEventListener(COOKIE_CONSENT_EVENT, syncAnalytics);
+    return () => {
+      active = false;
+      window.removeEventListener(COOKIE_CONSENT_EVENT, syncAnalytics);
+    };
+  }, []);
 
   useEffect(() => {
     const storedPlayback = readActivePlayback();
@@ -329,7 +394,7 @@ export default function Home() {
     const handleSearchKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setSearchOpen(false);
-        setQuery('');
+        setQueryRef.current('');
       }
     };
     document.documentElement.style.overflow = 'hidden';
@@ -340,9 +405,14 @@ export default function Home() {
       document.body.style.overflow = bodyOverflow;
       document.removeEventListener('keydown', handleSearchKeyDown);
     };
-  }, [searchOpen, setQuery]);
+  }, [searchOpen]);
 
-  const openMovie = (movie: TMDBMovie) => setSelectedMovie(movie);
+  const openMovie = (movie: TMDBMovie) => {
+    setSelectedMovie(movie);
+    recordMovieView(movie.id)
+      .then(setSiteStats)
+      .catch(() => undefined);
+  };
 
   const startMovie = (movie: TMDBMovie) => {
     clearActivePlayback();
@@ -554,13 +624,13 @@ export default function Home() {
           </div>
         ) : (
           <>
-            {history.length > 0 && <Section id="continue" eyebrow="Your orbit" title="Continue watching" note="Pick up where you left off" items={history} onSelect={openMovie} />}
-            <Section id="films" eyebrow="The main feature" title="Trending now" note="Most watched in the catalog" items={collections.trending} onSelect={openMovie} />
-            <Section id="latest" eyebrow="Fresh arrivals" title="New on the reel" note="Just added to the signal" items={collections.latest} onSelect={openMovie} />
-            <Section id="series" eyebrow="Long-form worlds" title="Series to disappear into" note="One more episode" items={collections.tv} onSelect={openMovie} />
-            <Section id="action" eyebrow="High velocity" title="Turn up the voltage" note="Action, adventure, adrenaline" items={collections.action} onSelect={openMovie} />
-            <Section id="top-rated" eyebrow="The inner circle" title="Critics' orbit" note="Highest rated right now" items={collections.topRated} onSelect={openMovie} />
-            <Section id="anime" eyebrow="Beyond reality" title="Animated dimensions" note="Stories with no ceiling" items={collections.anime} onSelect={openMovie} />
+            {history.length > 0 && <Section id="continue" eyebrow="Your orbit" title="Continue watching" note="Pick up where you left off" items={history} onSelect={openMovie} viewCounts={siteStats.movieViews} progressMap={watchProgress} />}
+            <Section id="films" eyebrow="The main feature" title="Trending now" note="Most watched in the catalog" items={collections.trending} onSelect={openMovie} viewCounts={siteStats.movieViews} progressMap={watchProgress} />
+            <Section id="latest" eyebrow="Fresh arrivals" title="New on the reel" note="Just added to the signal" items={collections.latest} onSelect={openMovie} viewCounts={siteStats.movieViews} progressMap={watchProgress} />
+            <Section id="series" eyebrow="Long-form worlds" title="Series to disappear into" note="One more episode" items={collections.tv} onSelect={openMovie} viewCounts={siteStats.movieViews} progressMap={watchProgress} />
+            <Section id="action" eyebrow="High velocity" title="Turn up the voltage" note="Action, adventure, adrenaline" items={collections.action} onSelect={openMovie} viewCounts={siteStats.movieViews} progressMap={watchProgress} />
+            <Section id="top-rated" eyebrow="The inner circle" title="Critics' orbit" note="Highest rated right now" items={collections.topRated} onSelect={openMovie} viewCounts={siteStats.movieViews} progressMap={watchProgress} />
+            <Section id="anime" eyebrow="Beyond reality" title="Animated dimensions" note="Stories with no ceiling" items={collections.anime} onSelect={openMovie} viewCounts={siteStats.movieViews} progressMap={watchProgress} />
           </>
         )}
       </div>
@@ -571,9 +641,6 @@ export default function Home() {
             <div className="site-footer-lede">
               <span className="section-eyebrow">Your next screening</span>
               <h2>Stay curious.<br /><em>Keep watching.</em></h2>
-              <a className="site-footer-arrow" href="#top" aria-label="Back to the top">
-                <ArrowUpRight size={22} />
-              </a>
             </div>
             <div className="site-footer-links">
               <div className="site-footer-column">
@@ -597,6 +664,8 @@ export default function Home() {
                 <a href="https://www.instagram.com/phcodesage/" target="_blank" rel="noreferrer"><Instagram size={15} /> Instagram</a>
                 <a href="https://github.com/phcodesage" target="_blank" rel="noreferrer"><Github size={15} /> GitHub</a>
                 <a className="site-footer-support" href="https://www.buymeacoffee.com/phcodesagep" target="_blank" rel="noreferrer"><Coffee size={15} /> Buy me a coffee <ArrowUpRight size={14} /></a>
+                <a href="/privacy">Privacy policy</a>
+                <CookieSettingsButton />
               </div>
             </div>
           </div>
@@ -604,10 +673,26 @@ export default function Home() {
             <div className="brand-mark"><span className="brand-orbit"><span /></span><span>SAGE<span>CINEMA</span></span></div>
             <p>Stories worth staying up for.</p>
             <span>TMDB-powered discovery</span>
+            <span className="site-footer-visits"><Eye size={13} /> {formatCount(siteStats.totalVisits)} total visits</span>
             <span>© {new Date().getFullYear()} Sage Cinema</span>
           </div>
         </div>
       </footer>
+
+      {scrollY > 420 && (
+        <motion.button
+          type="button"
+          className="scroll-top-button"
+          initial={{ opacity: 0, y: 12, scale: .85 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 12, scale: .85 }}
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          aria-label="Back to top"
+          title="Back to top"
+        >
+          <ChevronUp size={20} strokeWidth={2.5} />
+        </motion.button>
+      )}
 
       <AnimatePresence>
         {activePlayback && (
@@ -669,7 +754,7 @@ export default function Home() {
                       <span>Films <i /> Series <i /> Anime</span>
                     </div>
                     <div className="search-results">
-                      {results.slice(0, 12).map((movie, index) => <Poster key={`${movie.id}-${mediaTypeOf(movie)}`} movie={movie} index={index} onSelect={(item) => { setSearchOpen(false); openMovie(item); }} />)}
+                      {results.slice(0, 12).map((movie, index) => <Poster key={`${movie.id}-${mediaTypeOf(movie)}`} movie={movie} index={index} views={siteStats.movieViews[String(movie.id)] || 0} onSelect={(item) => { setSearchOpen(false); openMovie(item); }} />)}
                     </div>
                   </>
                 ) : (

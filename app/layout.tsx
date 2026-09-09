@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import type { Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import type { ReactNode } from 'react';
+import CookieConsent from '../components/CookieConsent';
 import ErrorBoundary from '../components/ErrorBoundary';
 import PwaRegister from '../components/PwaRegister';
 import ScrollToTop from '../components/ScrollToTop';
@@ -57,6 +58,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <AppProvider>
             <PwaRegister />
             <ScrollToTop />
+            <CookieConsent />
             {children}
           </AppProvider>
         </ErrorBoundary>

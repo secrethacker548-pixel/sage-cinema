@@ -3,6 +3,7 @@
 import { Maximize2, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { ActivePlayback } from '../lib/activePlayback';
+import { searchOnlineCaptions } from '../lib/captionSearch';
 import UnifiedPlayer from './UnifiedPlayer';
 
 interface MiniPlayerProps {
@@ -38,7 +39,15 @@ export default function MiniPlayer({ playback, onOpen, onClose }: MiniPlayerProp
       </div>
       <div className="mini-player-stage">
         {playback.sources?.length ? (
-          <UnifiedPlayer title={title} sources={playback.sources} compact autoPlay />
+          <UnifiedPlayer
+            title={title}
+            sources={playback.sources}
+            subtitles={playback.subtitles}
+            progressKey={`${playback.movie.first_air_date ? 'tv' : 'movie'}:${playback.movie.id}`}
+            onSearchCaptions={() => searchOnlineCaptions({ movie: playback.movie, lang: playback.lang, season: playback.season, episode: playback.episode })}
+            compact
+            autoPlay
+          />
         ) : (
           <div className="mini-player-unavailable">
             <span>Open the clean player to resume</span>

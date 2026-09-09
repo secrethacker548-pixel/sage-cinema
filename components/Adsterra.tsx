@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { hasCookieConsent, useCookieConsent } from '../lib/cookieConsent';
 import { useAppContext } from '../lib/context/AppContext';
 
 /**
@@ -18,7 +19,7 @@ import { useAppContext } from '../lib/context/AppContext';
  * on the client. `next/script` would also work; this way keeps the injection, the
  * cleanup and the double-mount guard visible in one place.
  *
- * Gated on NEXT_PUBLIC_ADSTERRA_ENABLED and user's app download status.
+ * Gated on NEXT_PUBLIC_ADSTERRA_ENABLED, advertising consent, and user's app download status.
  */
 
 const ENABLED = process.env.NEXT_PUBLIC_ADSTERRA_ENABLED === 'true';
@@ -44,7 +45,7 @@ function isAppDownloaded(): boolean {
  * No-op (returns false) when ads are disabled, app is downloaded, or no link is configured.
  */
 export function openAdsterraDirectLink(): boolean {
-  if (!ENABLED || !DIRECT_LINK || isAppDownloaded()) return false;
+  if (!ENABLED || !DIRECT_LINK || !hasCookieConsent('advertising') || isAppDownloaded()) return false;
   try {
     window.open(DIRECT_LINK, '_blank', 'noopener,noreferrer');
     return true;
@@ -84,7 +85,8 @@ function useAdScript(src: string, enabled: boolean, parent?: React.RefObject<HTM
 
 export function AdsterraSocialBar() {
   const { hasDownloadedApp } = useAppContext();
-  const active = ENABLED && !hasDownloadedApp && !isAppDownloaded();
+  const consent = useCookieConsent();
+  const active = ENABLED && consent?.advertising === true && !hasDownloadedApp && !isAppDownloaded();
 
   useAdScript(SOCIAL_BAR_SRC, active);
   return null;
@@ -92,7 +94,8 @@ export function AdsterraSocialBar() {
 
 export function AdsterraGlobalScript() {
   const { hasDownloadedApp } = useAppContext();
-  const active = ENABLED && !hasDownloadedApp && !isAppDownloaded();
+  const consent = useCookieConsent();
+  const active = ENABLED && consent?.advertising === true && !hasDownloadedApp && !isAppDownloaded();
 
   useAdScript(GLOBAL_LAYOUT_AD_SRC, active);
   return null;
@@ -105,7 +108,8 @@ export function AdsterraGlobalScript() {
  */
 export function AdsterraNativeBanner({ className = 'px-4 md:px-12 my-6' }: { className?: string }) {
   const { hasDownloadedApp } = useAppContext();
-  const active = ENABLED && !hasDownloadedApp && !isAppDownloaded();
+  const consent = useCookieConsent();
+  const active = ENABLED && consent?.advertising === true && !hasDownloadedApp && !isAppDownloaded();
   const hostRef = useRef<HTMLDivElement>(null);
 
   useAdScript(NATIVE_BANNER_SRC, active, hostRef);

@@ -11,11 +11,19 @@ export interface ActivePlaybackSource {
   provider: string;
 }
 
+export interface ActivePlaybackSubtitle {
+  id: string;
+  lang: string;
+  language: string;
+  url: string;
+}
+
 export interface ActivePlayback {
   movie: TMDBMovie;
   embedUrl: string;
   playerMode?: 'native' | 'embed';
   sources?: ActivePlaybackSource[];
+  subtitles?: ActivePlaybackSubtitle[];
   server: string;
   lang: string;
   season: number;

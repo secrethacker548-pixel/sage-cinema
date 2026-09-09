@@ -20,9 +20,9 @@ export default function ScrollToTop() {
           whileTap={{ scale: 0.94 }}
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           aria-label="Scroll to top"
+          title="Scroll to top"
         >
           <ArrowUp size={17} />
-          <span>Top</span>
         </motion.button>
       )}
     </AnimatePresence>
