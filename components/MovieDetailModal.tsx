@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Star, Play, PlayCircle, Download, UserCheck } from 'lucide-react';
+import { ArrowLeft, Star, Play } from 'lucide-react';
 import Image from 'next/image';
 import type { TMDBMovie } from '../types/tmdb';
 
@@ -17,10 +16,6 @@ interface MovieDetailModalProps {
 
 export default function MovieDetailModal({ movie, onClose, genres }: MovieDetailModalProps) {
   const router = useRouter();
-  const [server, setServer] = useState('vidsrc.to');
-  const [embedUrl, setEmbedUrl] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [showOverlay, setShowOverlay] = useState(true);
 
   const handlePlay = () => {
     const slug = (movie.title || movie.name || '')
@@ -31,25 +26,6 @@ export default function MovieDetailModal({ movie, onClose, genres }: MovieDetail
     onClose();
     router.push(`/movie/${movie.id}/${mediaType}-${slug}`);
   };
-
-  useEffect(() => {
-    const fetchSource = async () => {
-      setIsLoading(true);
-      try {
-        const type = movie.media_type || (movie.first_air_date ? 'tv' : 'movie');
-        const res = await fetch(`/api/video-sources/${type}/${movie.id}?server=${server}`);
-        if (!res.ok) throw new Error('Failed to fetch source');
-        const data = await res.json();
-        setEmbedUrl(data.embedURL || '');
-      } catch (err) {
-        console.error('Video source error:', err);
-        setEmbedUrl('');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchSource();
-  }, [movie, server]);
 
   return (
     <motion.div 
@@ -85,41 +61,17 @@ export default function MovieDetailModal({ movie, onClose, genres }: MovieDetail
 
         <div className="flex flex-col md:flex-row gap-8 mb-8">
           <div className="w-full md:w-[70%] aspect-video bg-black rounded-lg overflow-hidden shadow-2xl relative">
-            {isLoading && (
-              <div className="absolute inset-0 z-10 bg-black/80 flex flex-col items-center justify-center">
-                <div className="netflix-loader">
-                  <div className="netflix-logo"><div className="middle-bar" /></div>
-                </div>
-                <p className="mt-4 font-bold">Loading Player...</p>
-              </div>
-            )}
-            
-            {showOverlay && !isLoading && embedUrl && (
-              <div className="absolute inset-0 z-20 bg-black/90 flex flex-col items-center justify-center text-center p-6">
-                <h3 className="text-2xl font-bold mb-4">Verification Required</h3>
-                <p className="text-gray-400 mb-6 max-w-md">To unlock high-speed streaming and remove ads, please complete a quick verification.</p>
-                <div className="flex flex-col gap-4 w-full max-w-xs">
-                  <button 
-                    onClick={() => setShowOverlay(false)}
-                    className="bg-netflix-red hover:bg-red-700 text-white font-bold py-3 px-6 rounded-md transition flex items-center justify-center"
-                  >
-                    <UserCheck className="w-5 h-5 mr-2" /> Verify You're Human
-                  </button>
-                  <button onClick={() => setShowOverlay(false)} className="text-sm text-gray-500 hover:text-white underline">
-                    Continue to Player (with ads)
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {!isLoading && !embedUrl && (
-              <div className="absolute inset-0 z-10 bg-black/80 flex flex-col items-center justify-center text-center p-6">
-                <p className="text-xl font-bold text-gray-300">Video Source Not Available</p>
-                <p className="text-gray-500 mt-2">Please try selecting a different server from the dropdown menu.</p>
-              </div>
-            )}
-
-            {embedUrl && <iframe src={embedUrl} className="w-full h-full border-none" allow="autoplay; fullscreen *" allowFullScreen />}
+            {movie.backdrop_path ? (
+              <Image src={`${IMG_URL}${movie.backdrop_path}`} alt="" fill className="object-cover opacity-70" sizes="(max-width: 768px) 100vw, 70vw" />
+            ) : <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 to-black" />}
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-black/10" />
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center">
+              <span className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-lime-300">Unified player</span>
+              <h3 className="mb-5 text-2xl font-bold md:text-3xl">Ready for the screening room</h3>
+              <button onClick={handlePlay} className="bg-lime-300 px-6 py-3 font-bold text-black transition hover:bg-cyan-300">
+                <Play className="mr-2 inline h-5 w-5 fill-current" /> Open clean player
+              </button>
+            </div>
           </div>
 
           <div className="w-full md:w-[30%] flex flex-col gap-6">
@@ -135,31 +87,13 @@ export default function MovieDetailModal({ movie, onClose, genres }: MovieDetail
               <Play className="w-5 h-5 mr-2 fill-current" /> PLAY NOW
             </button>
 
-            <div className="flex flex-col gap-3">
-              <a href="#" target="_blank" className="w-full bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 text-white font-bold py-3 rounded flex items-center justify-center transition">
-                <PlayCircle className="w-5 h-5 mr-2" /> WATCH IN FULL HD
-              </a>
-              <a href="#" target="_blank" className="w-full bg-netflix-dark hover:bg-gray-800 text-white font-bold py-3 rounded border border-gray-700 flex items-center justify-center transition">
-                <Download className="w-5 h-5 mr-2" /> DOWNLOAD MOVIE
-              </a>
+            <div className="w-full rounded border border-cyan-400/20 bg-cyan-400/5 p-3 text-center text-sm font-semibold text-cyan-200">
+              Quality and speed are controlled by Sage Cinema.
             </div>
 
             <div className="bg-netflix-dark p-4 rounded-lg">
-              <label className="block text-neutral-300 mb-2 font-medium">Change Server:</label>
-              <select
-                value={server}
-                onChange={(e) => setServer(e.target.value)}
-                className="w-full bg-black text-white border border-gray-700 rounded px-3 py-2 focus:ring-1 focus:ring-netflix-red"
-              >
-                <option value="vidsrc.to">Vidsrc.to (Primary)</option>
-                <option value="vidsrc.su">Vidsrc.su (Stable)</option>
-                <option value="vidsrc.me">Vidsrc.me (Backup)</option>
-                <option value="embedsu">Embedsu (Mirror)</option>
-                <option value="superembed">SuperEmbed (Multi)</option>
-                <option value="player.videasy.net">Videasy (Alternative)</option>
-                <option value="vidsrc.pro">Vidsrc.pro (Global)</option>
-                <option value="vidsrc.cc">Vidsrc.cc (Legacy)</option>
-              </select>
+              <p className="text-sm font-semibold text-neutral-200">Playback sources are normalized into one player.</p>
+              <p className="mt-2 text-sm text-neutral-400">Open the player to choose quality, playback speed, subtitles, and fullscreen.</p>
             </div>
           </div>
         </div>

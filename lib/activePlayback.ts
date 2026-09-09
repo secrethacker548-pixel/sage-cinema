@@ -2,9 +2,20 @@ import type { TMDBMovie } from '../types/tmdb';
 
 export const ACTIVE_PLAYBACK_STORAGE_KEY = 'sage-cinema-active-playback';
 
+export interface ActivePlaybackSource {
+  id: string;
+  label: string;
+  quality: string;
+  type: 'hls' | 'mp4' | 'dash' | 'unknown';
+  playbackUrl: string;
+  provider: string;
+}
+
 export interface ActivePlayback {
   movie: TMDBMovie;
   embedUrl: string;
+  playerMode?: 'native' | 'embed';
+  sources?: ActivePlaybackSource[];
   server: string;
   lang: string;
   season: number;

@@ -6,10 +6,7 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
-  Gauge,
   Info,
-  Maximize2,
-  Minimize2,
   MonitorPlay,
   Play,
   RotateCw,
@@ -32,6 +29,8 @@ import {
 import type { TMDBMovie } from '../../../../types/tmdb';
 import { cn } from '../../../../lib/utils';
 import { AdsterraNativeBanner, openAdsterraDirectLink } from '../../../../components/Adsterra';
+import UnifiedPlayer from '../../../../components/UnifiedPlayer';
+import type { UnifiedSource } from '../../../../lib/unifiedSources';
 import {
   DEFAULT_LANG,
   DEFAULT_SERVER,
@@ -40,8 +39,6 @@ import {
   VIDEO_SERVERS,
 } from '../../../../lib/videoServers';
 
-const PLAYER_SANDBOX =
-  'allow-scripts allow-same-origin allow-presentation allow-forms allow-fullscreen';
 const IMG_URL = 'https://image.tmdb.org/t/p/original';
 const THUMB_URL = 'https://image.tmdb.org/t/p/w500';
 
@@ -58,6 +55,7 @@ export default function MovieDetailPage() {
   const [server, setServer] = useState(DEFAULT_SERVER);
   const [lang, setLang] = useState(DEFAULT_LANG);
   const [embedUrl, setEmbedUrl] = useState('');
+  const [playbackSources, setPlaybackSources] = useState<UnifiedSource[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,8 +64,6 @@ export default function MovieDetailPage() {
   const [isDescExpanded, setIsDescExpanded] = useState(false);
   const [similarMovies, setSimilarMovies] = useState<TMDBMovie[]>([]);
   const [showUpNext, setShowUpNext] = useState(false);
-  const [showPlayerControls, setShowPlayerControls] = useState(false);
-  const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
 
   type ServerStatus = 'up' | 'down' | 'checking';
   const [serverHealth, setServerHealth] = useState<Record<string, ServerStatus>>({});
@@ -75,7 +71,6 @@ export default function MovieDetailPage() {
   const playbackInteractions = React.useRef(0);
   const isPlayingRef = React.useRef(false);
   const serverRef = React.useRef(DEFAULT_SERVER);
-  const playerRef = React.useRef<HTMLDivElement>(null);
   const isNavScrolled = useScroll(16);
   const serverNumber = (sid: string) => VIDEO_SERVERS.findIndex((s) => s.id === sid) + 1;
 
@@ -92,26 +87,19 @@ export default function MovieDetailPage() {
     serverRef.current = server;
   }, [server]);
 
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsPlayerFullscreen(document.fullscreenElement === playerRef.current);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
-
   const persistActivePlayback = React.useCallback(() => {
-    if (!movie || !isPlaying || !embedUrl) return;
+    if (!movie || !isPlaying || (!embedUrl && playbackSources.length === 0)) return;
     saveActivePlayback({
       movie,
-      embedUrl,
+      embedUrl: embedUrl || playbackSources[0]?.playbackUrl || '',
+      playerMode: playbackSources.length > 0 ? 'native' : 'embed',
+      sources: playbackSources,
       server,
       lang,
       season: selectedSeason,
       episode: selectedEpisode,
     });
-  }, [movie, isPlaying, embedUrl, server, lang, selectedSeason, selectedEpisode]);
+  }, [movie, isPlaying, embedUrl, playbackSources, server, lang, selectedSeason, selectedEpisode]);
 
   useEffect(() => {
     persistActivePlayback();
@@ -196,6 +184,7 @@ export default function MovieDetailPage() {
     setSelectedSeason(storedPlayback.season || 1);
     setSelectedEpisode(storedPlayback.episode || 1);
     setEmbedUrl(storedPlayback.embedUrl);
+    setPlaybackSources(storedPlayback.sources || []);
     setIsPlaying(true);
   }, [movie]);
 
@@ -211,19 +200,24 @@ export default function MovieDetailPage() {
 
     try {
       const type = movie.first_air_date ? 'tv' : 'movie';
+      const title = movie.title || movie.name || '';
+      const year = (movie.release_date || movie.first_air_date || '').slice(0, 4);
       const response = await fetch(
-        `/api/video-sources/${type}/${movie.id}?server=${selectedServer}&lang=${selectedLang}&season=${seasonNumber}&episode=${episodeNumber}`
+        `/api/video-sources/${type}/${movie.id}?player=unified&server=${selectedServer}&lang=${selectedLang}&season=${seasonNumber}&episode=${episodeNumber}&title=${encodeURIComponent(title)}&year=${year}&totalSeasons=${movie.number_of_seasons || ''}`
       );
       if (!response.ok) throw new Error('Failed to fetch video source');
       const data = await response.json();
 
-      if (!data.embedURL) {
-        setError('Video source not available for this server. Try another server.');
+      if (data.player !== 'unified' || !data.sources?.length) {
+        setPlaybackSources([]);
+        setEmbedUrl('');
+        setError(data.error || 'Clean playback is not available for this title yet. Try another source.');
         if (!isPlaying) setIsPlaying(false);
         return;
       }
 
-      setEmbedUrl(data.embedURL);
+      setPlaybackSources(data.sources);
+      setEmbedUrl(data.sources[0]?.playbackUrl || '');
       addToHistory(movie);
       if (type === 'tv') markWatched(movie.id, seasonNumber, episodeNumber);
     } catch (loadError) {
@@ -270,17 +264,10 @@ export default function MovieDetailPage() {
   }, [movie?.id]);
 
   const isCheckingHealth = Object.values(serverHealth).some((status) => status === 'checking');
-  const allServersDown =
-    Object.keys(serverHealth).length > 0 &&
-    Object.values(serverHealth).every((status) => status === 'down');
 
   const handlePlay = (seasonNumber: number = selectedSeason, episodeNumber: number = selectedEpisode) => {
-    const firstAvailableServer = VIDEO_SERVERS.find((item) => serverHealth[item.id] === 'up');
-    const serverToUse = serverHealth[server] === 'down' && firstAvailableServer ? firstAvailableServer.id : server;
-
-    if (serverToUse !== server) setServer(serverToUse);
     setIsPlaying(true);
-    loadVideoSource(serverToUse, lang, seasonNumber, episodeNumber);
+    loadVideoSource(server, lang, seasonNumber, episodeNumber);
   };
 
   const handleServerChange = (newServer: string) => {
@@ -303,24 +290,9 @@ export default function MovieDetailPage() {
   const handleClosePlayer = () => {
     setIsPlaying(false);
     setEmbedUrl('');
+    setPlaybackSources([]);
     setShowUpNext(false);
-    setShowPlayerControls(false);
     clearActivePlayback();
-  };
-
-  const togglePlayerFullscreen = async () => {
-    const player = playerRef.current;
-    if (!player) return;
-
-    try {
-      if (document.fullscreenElement) {
-        await document.exitFullscreen();
-      } else {
-        await player.requestFullscreen();
-      }
-    } catch (fullscreenError) {
-      console.warn('Player fullscreen unavailable:', fullscreenError);
-    }
   };
 
   const handleLeaveToDiscovery = () => {
@@ -394,7 +366,7 @@ export default function MovieDetailPage() {
 
       <main className="detail-shell">
         <section className="detail-player-column">
-          <div className="nebula-player" ref={playerRef}>
+          <div className="nebula-player">
             <div className={cn('player-chrome', isPlaying && 'player-chrome-live')}>
               <span className="player-state">
                 <span className={cn('player-state-dot', isPlaying ? 'is-live' : 'is-ready')} />
@@ -403,20 +375,7 @@ export default function MovieDetailPage() {
               <span className="player-format">HD · {mediaLabel.toUpperCase()}</span>
             </div>
 
-            {allServersDown ? (
-              <div className="player-message player-message-error">
-                <span className="message-icon">!</span>
-                <h2>Not available yet</h2>
-                <p>
-                  {releaseDate
-                    ? `${title} is dated ${releaseDate}. Stream files may not be indexed yet.`
-                    : `Streaming servers are still indexing ${title}.`}
-                </p>
-                <button type="button" className="nebula-button nebula-button-primary" onClick={() => router.push('/')}>
-                  Browse other titles
-                </button>
-              </div>
-            ) : isPlaying ? (
+            {isPlaying ? (
               <>
                 {isLoading && (
                   <div className="player-overlay player-loading-overlay">
@@ -440,70 +399,25 @@ export default function MovieDetailPage() {
                     </button>
                   </div>
                 )}
-                {embedUrl && (
-                  <iframe
-                    key={`${embedUrl}|${getServer(server).sandboxTolerant}`}
-                    src={embedUrl}
-                    className="player-embed"
-                    title={`Watch ${title}`}
-                    width="100%"
-                    height="100%"
-                    loading="eager"
-                    allow="autoplay; fullscreen *; encrypted-media; picture-in-picture"
-                    allowFullScreen
-                    referrerPolicy="origin"
-                    sandbox={getServer(server).sandboxTolerant ? PLAYER_SANDBOX : undefined}
+                {playbackSources.length > 0 ? (
+                  <UnifiedPlayer
+                    title={title}
+                    poster={backdropPath ? `${IMG_URL}${backdropPath}` : undefined}
+                    sources={playbackSources}
+                    onClose={handleClosePlayer}
+                    onRefresh={() => loadVideoSource(server, lang)}
+                    onChooseSource={() => document.getElementById('playback-sources')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                   />
-                )}
-                <button type="button" className="player-close" onClick={handleClosePlayer} aria-label="Close player">
-                  <X size={18} />
-                </button>
-                <div className="player-control-bar">
-                  <button
-                    type="button"
-                    className={cn('player-control-button', showPlayerControls && 'is-active')}
-                    onClick={() => setShowPlayerControls((visible) => !visible)}
-                    aria-expanded={showPlayerControls}
-                  >
-                    <Gauge size={16} /> Controls
-                  </button>
-                  <button type="button" className="player-control-button" onClick={togglePlayerFullscreen}>
-                    {isPlayerFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-                    {isPlayerFullscreen ? 'Exit' : 'Full screen'}
-                  </button>
-                </div>
-                <AnimatePresence>
-                  {showPlayerControls && (
-                    <motion.div
-                      className="player-control-panel"
-                      initial={{ opacity: 0, y: 10, scale: 0.97 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.97 }}
-                    >
-                      <div className="player-control-panel-heading">
-                        <span>Player controls</span>
-                        <small>Unified shell</small>
-                      </div>
-                      <div className="player-control-row">
-                        <span><MonitorPlay size={15} /> Quality</span>
-                        <strong>Auto</strong>
-                      </div>
-                      <div className="player-control-row">
-                        <span><Gauge size={15} /> Speed</span>
-                        <strong>1×</strong>
-                      </div>
-                      <p className="player-control-note">Quality and speed are controlled by the embedded source.</p>
-                      <div className="player-control-actions">
-                        <button type="button" onClick={() => loadVideoSource(server, lang)}>
-                          <RotateCw size={14} /> Refresh source
-                        </button>
-                        <button type="button" onClick={() => document.getElementById('playback-sources')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
-                          <MonitorPlay size={14} /> Choose source
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                ) : !isLoading ? (
+                  <div className="player-message player-message-error">
+                    <span className="message-icon">!</span>
+                    <h2>Clean player unavailable</h2>
+                    <p>{error || 'This title does not have a clean stream yet. Try another source.'}</p>
+                    <button type="button" className="nebula-button nebula-button-primary" onClick={() => loadVideoSource(server, lang)}>
+                      <RotateCw size={15} /> Try again
+                    </button>
+                  </div>
+                ) : null}
               </>
             ) : (
               <div className="player-idle">

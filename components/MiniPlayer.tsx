@@ -3,6 +3,7 @@
 import { Maximize2, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { ActivePlayback } from '../lib/activePlayback';
+import UnifiedPlayer from './UnifiedPlayer';
 
 interface MiniPlayerProps {
   playback: ActivePlayback;
@@ -36,14 +37,13 @@ export default function MiniPlayer({ playback, onOpen, onClose }: MiniPlayerProp
         </div>
       </div>
       <div className="mini-player-stage">
-        <iframe
-          src={playback.embedUrl}
-          title={`Mini player for ${title}`}
-          allow="autoplay; fullscreen *; encrypted-media; picture-in-picture"
-          allowFullScreen
-          referrerPolicy="origin"
-          tabIndex={-1}
-        />
+        {playback.sources?.length ? (
+          <UnifiedPlayer title={title} sources={playback.sources} compact autoPlay />
+        ) : (
+          <div className="mini-player-unavailable">
+            <span>Open the clean player to resume</span>
+          </div>
+        )}
         <button type="button" className="mini-player-open-label" onClick={onOpen}>
           <Maximize2 size={14} /> Open player
         </button>
