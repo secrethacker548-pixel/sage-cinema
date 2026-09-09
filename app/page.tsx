@@ -5,15 +5,20 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowUpRight,
+  AtSign,
   ChevronLeft,
   ChevronRight,
   Command,
+  Coffee,
   Film,
+  Github,
   Info,
+  Instagram,
   Menu,
   Play,
   Search,
   Star,
+  Youtube,
   X,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
@@ -584,6 +589,14 @@ export default function Home() {
                 <a href="#latest">Fresh arrivals</a>
                 <a href="#top-rated">Critics&apos; orbit</a>
                 <a href="#action">High velocity</a>
+              </div>
+              <div className="site-footer-column site-footer-social-column">
+                <span>Stay connected</span>
+                <a href="https://www.threads.com/@phcodesage" target="_blank" rel="noreferrer"><AtSign size={15} /> Threads</a>
+                <a href="https://www.youtube.com/@SWERech" target="_blank" rel="noreferrer"><Youtube size={15} /> YouTube</a>
+                <a href="https://www.instagram.com/phcodesage/" target="_blank" rel="noreferrer"><Instagram size={15} /> Instagram</a>
+                <a href="https://github.com/phcodesage" target="_blank" rel="noreferrer"><Github size={15} /> GitHub</a>
+                <a className="site-footer-support" href="https://www.buymeacoffee.com/phcodesagep" target="_blank" rel="noreferrer"><Coffee size={15} /> Buy me a coffee <ArrowUpRight size={14} /></a>
               </div>
             </div>
           </div>
