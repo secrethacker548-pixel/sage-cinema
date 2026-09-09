@@ -5,6 +5,7 @@ import { Building2, Clock3, Globe2, Play, Star, Users, X } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { getMovieDetails } from '../lib/moviePrefetch';
 import type { TMDBMovie } from '../types/tmdb';
 
 const IMG_URL = 'https://image.tmdb.org/t/p/original';
@@ -43,19 +44,19 @@ export default function MovieDetailModal({ movie, onClose, genres, onPlay }: Mov
   const isLoadingDetails = loadedDetailsKey !== detailsKey;
 
   useEffect(() => {
-    const controller = new AbortController();
+    let active = true;
 
-    fetch(`/api/movie/${movie.id}?type=${mediaType}`, { signal: controller.signal })
-      .then((response) => (response.ok ? response.json() : null))
+    getMovieDetails<MovieDetails>(movie.id, mediaType)
       .then((data: MovieDetails | null) => {
-        if (data && !controller.signal.aborted) setDetails(data);
+        if (data && active) setDetails(data);
       })
-      .catch(() => undefined)
       .finally(() => {
-        if (!controller.signal.aborted) setLoadedDetailsKey(detailsKey);
+        if (active) setLoadedDetailsKey(detailsKey);
       });
 
-    return () => controller.abort();
+    return () => {
+      active = false;
+    };
   }, [detailsKey, mediaType, movie.id]);
 
   const title = activeDetails.title || activeDetails.name || 'Untitled';

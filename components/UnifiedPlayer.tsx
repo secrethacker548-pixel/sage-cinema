@@ -157,6 +157,25 @@ export default function UnifiedPlayer({
     scheduleControlsHide();
   }, [scheduleControlsHide]);
 
+  const closeControlsDialog = () => {
+    setShowControls(false);
+    setShowQuality(false);
+    setShowSpeed(false);
+  };
+
+  const toggleControlsDialog = () => {
+    setControlsVisible(true);
+    setShowQuality(false);
+    setShowSpeed(false);
+    setShowControls((open) => !open);
+  };
+
+  const handleStageClick = (event: { target: EventTarget | null }) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('button, input, a')) return;
+    togglePlayback();
+  };
+
   useEffect(() => {
     scheduleControlsHide();
     return clearControlsTimer;
@@ -197,7 +216,7 @@ export default function UnifiedPlayer({
       onPointerDown={revealControls}
       onFocusCapture={revealControls}
     >
-      <div className="unified-player-stage">
+      <div className="unified-player-stage" onClick={handleStageClick}>
         <video
           ref={videoRef}
           className="unified-video"
@@ -219,6 +238,24 @@ export default function UnifiedPlayer({
           onError={() => setPlaybackError('The clean stream could not be loaded.')}
           aria-label={`Watch ${title}`}
         />
+
+        {!isPlaying && duration > 0 && !playbackError && (
+          <button
+            type="button"
+            className="unified-paused-state"
+            onClick={(event) => {
+              event.stopPropagation();
+              togglePlayback();
+            }}
+            aria-label={`Resume ${title}`}
+          >
+            <span className="unified-paused-content">
+              <span className="unified-paused-icon"><Play size={22} fill="currentColor" /></span>
+              <strong>Paused</strong>
+              <small>Tap to continue</small>
+            </span>
+          </button>
+        )}
 
         {!compact && (
           <>
@@ -254,7 +291,7 @@ export default function UnifiedPlayer({
             <button type="button" className="player-control-button" onClick={togglePlayback} aria-label={isPlaying ? 'Pause video' : 'Play video'}>
               {isPlaying ? <Pause size={15} /> : <Play size={15} fill="currentColor" />}
             </button>
-            <button type="button" className={`player-control-button${showControls ? ' is-active' : ''}`} onClick={() => { setControlsVisible(true); setShowControls((open) => !open); }} aria-expanded={showControls}>
+            <button type="button" className={`player-control-button${showControls ? ' is-active' : ''}`} onClick={toggleControlsDialog} aria-expanded={showControls}>
               <Settings2 size={15} /> Controls
             </button>
             <button type="button" className="player-control-button" onClick={toggleFullscreen}>
@@ -262,48 +299,67 @@ export default function UnifiedPlayer({
               {isFullscreen ? 'Exit' : 'Full screen'}
             </button>
           </div>
-          {showControls && (
-            <div className="unified-player-menu">
-              <div className="unified-player-menu-heading"><span>Player controls</span><small>Clean native player</small></div>
-              <div className="unified-player-menu-grid">
-                <div className="unified-player-menu-group">
-                  <span><MonitorPlay size={14} /> Quality</span>
-                  <button type="button" className="unified-select-button" onClick={() => { setShowQuality((open) => !open); setShowSpeed(false); }}>
-                    {selectedQuality} <span>⌄</span>
-                  </button>
-                  {showQuality && (
-                    <div className="unified-option-list">
-                      {['Auto', ...qualities].map((quality) => (
-                        <button key={quality} type="button" className={selectedQuality === quality ? 'is-selected' : ''} onClick={() => { setSelectedQuality(quality); setShowQuality(false); }}>
-                          {quality}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="unified-player-menu-group">
-                  <span><Gauge size={14} /> Speed</span>
-                  <button type="button" className="unified-select-button" onClick={() => { setShowSpeed((open) => !open); setShowQuality(false); }}>
-                    {playbackRate}× <span>⌄</span>
-                  </button>
-                  {showSpeed && (
-                    <div className="unified-option-list">
-                      {SPEED_OPTIONS.map((speed) => (
-                        <button key={speed} type="button" className={playbackRate === speed ? 'is-selected' : ''} onClick={() => { setPlaybackRate(speed); setShowSpeed(false); }}>
-                          {speed}×
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <p className="player-control-note">Quality switches between the clean stream files. Speed is controlled by Sage Cinema.</p>
-              <div className="player-control-actions">
-                {onRefresh && <button type="button" onClick={onRefresh}><RotateCw size={14} /> Refresh source</button>}
-                {onChooseSource && <button type="button" onClick={onChooseSource}><MonitorPlay size={14} /> Choose source</button>}
+        </div>
+      )}
+
+      {!compact && showControls && (
+        <div
+          className="unified-controls-layer"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Player controls"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeControlsDialog();
+          }}
+        >
+          <div className="unified-player-menu unified-player-menu-modal">
+            <div className="unified-player-menu-heading">
+              <span>Player controls</span>
+              <div>
+                <small>Clean native player</small>
+                <button type="button" className="unified-menu-close" onClick={closeControlsDialog} aria-label="Close player controls">
+                  <X size={16} />
+                </button>
               </div>
             </div>
-          )}
+            <div className="unified-player-menu-grid">
+              <div className="unified-player-menu-group">
+                <span><MonitorPlay size={14} /> Quality</span>
+                <button type="button" className="unified-select-button" onClick={() => { setShowQuality((open) => !open); setShowSpeed(false); }}>
+                  {selectedQuality} <span>⌄</span>
+                </button>
+                {showQuality && (
+                  <div className="unified-option-list">
+                    {['Auto', ...qualities].map((quality) => (
+                      <button key={quality} type="button" className={selectedQuality === quality ? 'is-selected' : ''} onClick={() => { setSelectedQuality(quality); setShowQuality(false); }}>
+                        {quality}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="unified-player-menu-group">
+                <span><Gauge size={14} /> Speed</span>
+                <button type="button" className="unified-select-button" onClick={() => { setShowSpeed((open) => !open); setShowQuality(false); }}>
+                  {playbackRate}× <span>⌄</span>
+                </button>
+                {showSpeed && (
+                  <div className="unified-option-list">
+                    {SPEED_OPTIONS.map((speed) => (
+                      <button key={speed} type="button" className={playbackRate === speed ? 'is-selected' : ''} onClick={() => { setPlaybackRate(speed); setShowSpeed(false); }}>
+                        {speed}×
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <p className="player-control-note">Quality switches between the clean stream files. Speed is controlled by Sage Cinema.</p>
+            <div className="player-control-actions">
+              {onRefresh && <button type="button" onClick={onRefresh}><RotateCw size={14} /> Refresh source</button>}
+              {onChooseSource && <button type="button" onClick={onChooseSource}><MonitorPlay size={14} /> Choose source</button>}
+            </div>
+          </div>
         </div>
       )}
     </div>

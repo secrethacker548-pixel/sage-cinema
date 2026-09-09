@@ -6,6 +6,7 @@ import { Play, Star, Volume2, VolumeX, Info, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { TMDBMovie } from '../types/tmdb';
 import { cn } from '../lib/utils';
+import { getMovieDetails } from '../lib/moviePrefetch';
 
 const IMG_URL = 'https://image.tmdb.org/t/p/original';
 
@@ -20,25 +21,24 @@ interface PreviewCardProps {
 
 export default function PreviewCard({ movie, isVisible, position, onClose, onPlay, onMouseEnter }: PreviewCardProps) {
   const [trailerKey, setTrailerKey] = useState<string | null>(null);
+  const [trailerMovieId, setTrailerMovieId] = useState<number | null>(null);
   const [isMuted, setIsMuted] = useState(true);
+  const visibleTrailerKey = isVisible && trailerMovieId === movie.id ? trailerKey : null;
 
   useEffect(() => {
+    let active = true;
     if (isVisible && movie) {
       const type = movie.first_air_date ? 'tv' : 'movie';
-      fetch(`/api/movie/${movie.id}?type=${type}&v=2`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.videos && data.videos.results) {
-            const trailer = data.videos.results.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube');
-            if (trailer) {
-              setTrailerKey(trailer.key);
-            }
-          }
-        })
-        .catch(console.error);
-    } else {
-      setTrailerKey(null);
+      getMovieDetails<any>(movie.id, type).then((data) => {
+        if (!active) return;
+        const trailer = data?.videos?.results?.find((video: any) => video.type === 'Trailer' && video.site === 'YouTube');
+        setTrailerKey(trailer?.key || null);
+        setTrailerMovieId(movie.id);
+      });
     }
+    return () => {
+      active = false;
+    };
   }, [isVisible, movie]);
 
   if (!movie) return null;
@@ -62,7 +62,7 @@ export default function PreviewCard({ movie, isVisible, position, onClose, onPla
           <div className="relative aspect-video bg-black overflow-hidden">
             
             {/* Backdrop Fallback */}
-            <div className={cn("absolute inset-0 transition-opacity duration-500", trailerKey ? "opacity-0" : "opacity-100")}>
+              <div className={cn("absolute inset-0 transition-opacity duration-500", visibleTrailerKey ? "opacity-0" : "opacity-100")}>
               <Image 
                 src={`${IMG_URL}${movie.backdrop_path || movie.poster_path}`}
                 alt={movie.title || movie.name || ''}
@@ -71,17 +71,17 @@ export default function PreviewCard({ movie, isVisible, position, onClose, onPla
               />
             </div>
 
-            {trailerKey && (
+            {visibleTrailerKey && (
               <div className="absolute inset-0 z-10 pointer-events-none w-full h-full">
                 <iframe
-                  src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&mute=${isMuted ? 1 : 0}&controls=0&modestbranding=1&rel=0&playsinline=1&start=4`}
+                  src={`https://www.youtube-nocookie.com/embed/${visibleTrailerKey}?autoplay=1&mute=${isMuted ? 1 : 0}&controls=0&modestbranding=1&rel=0&playsinline=1&start=4`}
                   allow="autoplay; encrypted-media"
                   className="w-full h-full border-none transform scale-[1.35] origin-center"
                 />
               </div>
             )}
 
-            {trailerKey && (
+            {visibleTrailerKey && (
               <div className="absolute top-2 right-2 flex gap-2 z-20">
                 <button 
                   onClick={() => setIsMuted(!isMuted)}

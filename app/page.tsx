@@ -20,6 +20,7 @@ import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } fr
 import { useSearch } from '../lib/hooks/useSearch';
 import { useWatchHistory } from '../lib/hooks/useWatchHistory';
 import { useAppContext } from '../lib/context/AppContext';
+import { preloadMovieImage, prefetchMovieDetails } from '../lib/moviePrefetch';
 import MiniPlayer from '../components/MiniPlayer';
 import MovieDetailModal from '../components/MovieDetailModal';
 import SageLoader from '../components/SageLoader';
@@ -64,10 +65,12 @@ function Poster({
   movie,
   index,
   onSelect,
+  priority = false,
 }: {
   movie: TMDBMovie;
   index: number;
   onSelect: (movie: TMDBMovie) => void;
+  priority?: boolean;
 }) {
   return (
     <motion.button
@@ -76,6 +79,8 @@ function Poster({
       style={{ '--card-index': index } as CSSProperties}
       whileHover={{ y: -12, rotateY: index % 2 === 0 ? -2 : 2, scale: 1.035 }}
       whileTap={{ scale: 0.98 }}
+      onPointerEnter={() => prefetchMovieDetails(movie)}
+      onFocus={() => prefetchMovieDetails(movie)}
       onClick={() => onSelect(movie)}
       aria-label={`Open ${titleOf(movie)}`}
     >
@@ -85,6 +90,8 @@ function Poster({
             src={`${POSTER_URL}${movie.poster_path}`}
             alt=""
             fill
+            priority={priority}
+            loading={priority ? 'eager' : 'lazy'}
             sizes="(max-width: 640px) 42vw, (max-width: 1100px) 22vw, 15vw"
           />
         ) : (
@@ -203,7 +210,7 @@ function Section({
       <div className="shelf-viewport">
         <div className="shelf-track" ref={rowRef}>
           {items.slice(0, 24).map((movie, index) => (
-            <Poster key={`${movie.id}-${index}`} movie={movie} index={index} onSelect={onSelect} />
+            <Poster key={`${movie.id}-${index}`} movie={movie} index={index} priority={id === 'films' && index < 5} onSelect={onSelect} />
           ))}
         </div>
       </div>
@@ -274,6 +281,27 @@ export default function Home() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    const catalogMovies = Array.from(
+      new Map(
+        Object.values(collections)
+          .flat()
+          .map((movie) => [`${mediaTypeOf(movie)}:${movie.id}`, movie])
+      ).values()
+    );
+    if (catalogMovies.length === 0) return;
+
+    const preload = () => {
+      catalogMovies.slice(0, 36).forEach((movie) => {
+        preloadMovieImage(movie.poster_path, 'w500');
+        if (movie.backdrop_path) preloadMovieImage(movie.backdrop_path, 'w1280');
+      });
+      catalogMovies.slice(0, 6).forEach(prefetchMovieDetails);
+    };
+    const timer = window.setTimeout(preload, 180);
+    return () => window.clearTimeout(timer);
+  }, [collections]);
 
   useEffect(() => {
     if (collections.trending.length < 2) return;

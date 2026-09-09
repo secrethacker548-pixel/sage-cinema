@@ -27,6 +27,7 @@ import {
 } from '../../../../lib/activePlayback';
 import type { TMDBMovie } from '../../../../types/tmdb';
 import { cn } from '../../../../lib/utils';
+import { getMovieDetails } from '../../../../lib/moviePrefetch';
 import { AdsterraNativeBanner, openAdsterraDirectLink } from '../../../../components/Adsterra';
 import UnifiedPlayer from '../../../../components/UnifiedPlayer';
 import SageLoader from '../../../../components/SageLoader';
@@ -108,11 +109,10 @@ export default function MovieDetailPage() {
     const fetchMovieDetails = async () => {
       try {
         const mediaType = slug?.includes('tv') ? 'tv' : 'movie';
-        const res = await fetch(`/api/movie/${id}?type=${mediaType}`);
-        const data = await res.json();
+        const data = await getMovieDetails<any>(id, mediaType);
 
-        if (data.error) {
-          setError(data.error);
+        if (!data) {
+          setError('Movie not found');
           setMovie(null);
           return;
         }
@@ -401,6 +401,7 @@ export default function MovieDetailPage() {
                     title={title}
                     poster={backdropPath ? `${IMG_URL}${backdropPath}` : undefined}
                     sources={playbackSources}
+                    autoPlay
                     onClose={handleClosePlayer}
                     onRefresh={() => loadVideoSource(server, lang)}
                     onChooseSource={() => document.getElementById('playback-sources')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
@@ -483,7 +484,7 @@ export default function MovieDetailPage() {
           <section className="movie-intro-card">
             <div className="movie-poster-frame">
               {posterPath ? (
-                <Image src={`${THUMB_URL}${posterPath}`} alt={title} fill sizes="112px" className="movie-poster-image" />
+                <Image src={`${THUMB_URL}${posterPath}`} alt={title} fill priority sizes="112px" className="movie-poster-image" />
               ) : (
                 <span className="poster-fallback-mark">S</span>
               )}
