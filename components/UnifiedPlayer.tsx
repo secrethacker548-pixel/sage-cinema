@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Gauge, Maximize2, Minimize2, MonitorPlay, Pause, Play, RotateCw, Settings2, X } from 'lucide-react';
 import type Hls from 'hls.js';
 import type { UnifiedSource } from '../lib/unifiedSources';
@@ -23,6 +23,15 @@ function qualityRank(quality: string) {
   return QUALITY_RANK[quality] || Number.parseInt(quality, 10) || 0;
 }
 
+function formatTime(value: number) {
+  if (!Number.isFinite(value) || value < 0) return '0:00';
+  const totalSeconds = Math.floor(value);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${hours > 0 ? `${hours}:` : ''}${hours > 0 ? String(minutes).padStart(2, '0') : minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
 export default function UnifiedPlayer({
   title,
   poster,
@@ -42,8 +51,12 @@ export default function UnifiedPlayer({
   const [showSpeed, setShowSpeed] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
   const playbackRateRef = useRef(1);
+  const controlsTimerRef = useRef<number | null>(null);
 
   const playableSources = useMemo(
     () => sources.filter((source) => source.type === 'hls' || source.type === 'mp4'),
@@ -126,6 +139,29 @@ export default function UnifiedPlayer({
     if (videoRef.current) videoRef.current.playbackRate = playbackRate;
   }, [playbackRate]);
 
+  const clearControlsTimer = useCallback(() => {
+    if (controlsTimerRef.current !== null) {
+      window.clearTimeout(controlsTimerRef.current);
+      controlsTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleControlsHide = useCallback(() => {
+    clearControlsTimer();
+    if (!isPlaying || showControls) return;
+    controlsTimerRef.current = window.setTimeout(() => setControlsVisible(false), 2400);
+  }, [clearControlsTimer, isPlaying, showControls]);
+
+  const revealControls = useCallback(() => {
+    setControlsVisible(true);
+    scheduleControlsHide();
+  }, [scheduleControlsHide]);
+
+  useEffect(() => {
+    scheduleControlsHide();
+    return clearControlsTimer;
+  }, [clearControlsTimer, scheduleControlsHide]);
+
   const toggleFullscreen = async () => {
     if (!containerRef.current) return;
     try {
@@ -145,7 +181,7 @@ export default function UnifiedPlayer({
 
   if (!activeSource) {
     return (
-      <div className="unified-player unified-player-empty">
+      <div className={`unified-player unified-player-empty${compact ? ' unified-player-compact' : ''}`}>
         <MonitorPlay size={26} />
         <strong>Clean playback is unavailable</strong>
         <span>Try refreshing the source list.</span>
@@ -155,31 +191,70 @@ export default function UnifiedPlayer({
   }
 
   return (
-    <div className={`unified-player${compact ? ' unified-player-compact' : ''}`} ref={containerRef}>
-      <video
-        ref={videoRef}
-        className="unified-video"
-        poster={poster}
-        playsInline
-        controls
-        preload="metadata"
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onError={() => setPlaybackError('The clean stream could not be loaded.')}
-        aria-label={`Watch ${title}`}
-      />
+    <div
+      className={`unified-player${compact ? ' unified-player-compact' : ''}${!controlsVisible ? ' unified-controls-hidden' : ''}`}
+      ref={containerRef}
+      onPointerDown={revealControls}
+      onFocusCapture={revealControls}
+    >
+      <div className="unified-player-stage">
+        <video
+          ref={videoRef}
+          className="unified-video"
+          poster={poster}
+          playsInline
+          controls={false}
+          preload="metadata"
+          onPlay={() => {
+            setIsPlaying(true);
+            setControlsVisible(false);
+          }}
+          onPause={() => {
+            setIsPlaying(false);
+            setControlsVisible(true);
+          }}
+          onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+          onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
+          onDurationChange={(event) => setDuration(event.currentTarget.duration)}
+          onError={() => setPlaybackError('The clean stream could not be loaded.')}
+          aria-label={`Watch ${title}`}
+        />
+
+        {!compact && (
+          <>
+            {playbackError && <div className="unified-player-error" role="status">{playbackError}</div>}
+            <button type="button" className="player-close" onClick={onClose} aria-label="Close player">
+              <X size={18} />
+            </button>
+          </>
+        )}
+      </div>
 
       {!compact && (
-        <>
-          {playbackError && <div className="unified-player-error" role="status">{playbackError}</div>}
-          <button type="button" className="player-close" onClick={onClose} aria-label="Close player">
-            <X size={18} />
-          </button>
+        <div className={`unified-player-dock${!controlsVisible ? ' is-hidden' : ''}`}>
+          <div className="unified-player-progress-row">
+            <span>{formatTime(currentTime)}</span>
+            <input
+              type="range"
+              min="0"
+              max={duration || 0}
+              step="0.1"
+              value={Math.min(currentTime, duration || 0)}
+              onChange={(event) => {
+                const nextTime = Number(event.target.value);
+                setCurrentTime(nextTime);
+                if (videoRef.current) videoRef.current.currentTime = nextTime;
+              }}
+              disabled={!duration}
+              aria-label="Seek video"
+            />
+            <span>{formatTime(duration)}</span>
+          </div>
           <div className="unified-player-toolbar">
             <button type="button" className="player-control-button" onClick={togglePlayback} aria-label={isPlaying ? 'Pause video' : 'Play video'}>
               {isPlaying ? <Pause size={15} /> : <Play size={15} fill="currentColor" />}
             </button>
-            <button type="button" className={`player-control-button${showControls ? ' is-active' : ''}`} onClick={() => setShowControls((open) => !open)} aria-expanded={showControls}>
+            <button type="button" className={`player-control-button${showControls ? ' is-active' : ''}`} onClick={() => { setControlsVisible(true); setShowControls((open) => !open); }} aria-expanded={showControls}>
               <Settings2 size={15} /> Controls
             </button>
             <button type="button" className="player-control-button" onClick={toggleFullscreen}>
@@ -229,7 +304,7 @@ export default function UnifiedPlayer({
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

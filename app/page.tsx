@@ -10,6 +10,7 @@ import {
   Command,
   Film,
   Info,
+  Menu,
   Play,
   Search,
   Star,
@@ -18,7 +19,9 @@ import {
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { useSearch } from '../lib/hooks/useSearch';
 import { useWatchHistory } from '../lib/hooks/useWatchHistory';
+import { useAppContext } from '../lib/context/AppContext';
 import MiniPlayer from '../components/MiniPlayer';
+import MovieDetailModal from '../components/MovieDetailModal';
 import SageLoader from '../components/SageLoader';
 import { clearActivePlayback, readActivePlayback, type ActivePlayback } from '../lib/activePlayback';
 import type { TMDBMovie } from '../types/tmdb';
@@ -87,6 +90,7 @@ function Poster({
         ) : (
           <span className="poster-fallback">
             <Film size={26} />
+            <small>No artwork</small>
           </span>
         )}
         <span className="poster-vignette" />
@@ -215,10 +219,12 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [heroTilt, setHeroTilt] = useState({ x: 0, y: 0 });
   const [scrollY, setScrollY] = useState(0);
   const [activePlayback, setActivePlayback] = useState<ActivePlayback | null>(null);
   const { history, addToHistory } = useWatchHistory();
+  const { genres } = useAppContext();
   const { query, setQuery, results, isSearching } = useSearch(450);
 
   const featured = collections.trending[featuredIndex] || collections.latest[0] || null;
@@ -283,6 +289,26 @@ export default function Home() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  useEffect(() => {
+    if (!searchOpen) return;
+    const htmlOverflow = document.documentElement.style.overflow;
+    const bodyOverflow = document.body.style.overflow;
+    const handleSearchKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSearchOpen(false);
+        setQuery('');
+      }
+    };
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleSearchKeyDown);
+    return () => {
+      document.documentElement.style.overflow = htmlOverflow;
+      document.body.style.overflow = bodyOverflow;
+      document.removeEventListener('keydown', handleSearchKeyDown);
+    };
+  }, [searchOpen, setQuery]);
+
   const openMovie = (movie: TMDBMovie) => setSelectedMovie(movie);
 
   const startMovie = (movie: TMDBMovie) => {
@@ -301,6 +327,8 @@ export default function Home() {
     clearActivePlayback();
     setActivePlayback(null);
   };
+
+  const closeMobileMenu = () => setMobileMenuOpen(false);
 
   const handleHeroPointer = (event: PointerEvent<HTMLElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -336,7 +364,51 @@ export default function Home() {
           <span>Search the universe</span>
           <kbd><Command size={12} /> K</kbd>
         </button>
+        <button
+          className="mobile-menu-trigger"
+          type="button"
+          onClick={() => setMobileMenuOpen((open) => !open)}
+          aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-expanded={mobileMenuOpen}
+        >
+          {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+        </button>
       </header>
+
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            className="mobile-nav-panel"
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+          >
+            <nav className="mobile-nav-links" aria-label="Mobile navigation">
+              <a href="#top" onClick={closeMobileMenu}>Home</a>
+              <a href="#films" onClick={closeMobileMenu}>Films</a>
+              <a href="#series" onClick={closeMobileMenu}>Series</a>
+              <a href="#anime" onClick={closeMobileMenu}>Anime</a>
+            </nav>
+            <div className="mobile-genre-list">
+              <span>Genres</span>
+              <div>
+                {Object.entries(genres).map(([genreId, genreName]) => (
+                  <button
+                    type="button"
+                    key={genreId}
+                    onClick={() => {
+                      closeMobileMenu();
+                      router.push(`/genre/${genreId}`);
+                    }}
+                  >
+                    {genreName}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <section
         id="top"
@@ -508,44 +580,77 @@ export default function Home() {
 
       <AnimatePresence>
         {searchOpen && (
-          <motion.div className="search-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.div
+            className="search-layer"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Search the catalog"
+          >
             <div className="search-panel">
               <div className="search-head">
-                <span className="section-eyebrow">Search the catalog</span>
-                <button type="button" onClick={() => { setSearchOpen(false); setQuery(''); }} aria-label="Close search"><X /></button>
+                <div className="search-title-block">
+                  <span className="section-eyebrow">Search the catalog</span>
+                  <h2>Find your next watch.</h2>
+                  <p>Search films, series, and anime from one place.</p>
+                </div>
+                <button className="search-close-button" type="button" onClick={() => { setSearchOpen(false); setQuery(''); }} aria-label="Close search">Close</button>
               </div>
               <div className="search-input-wrap">
                 <Search size={20} />
                 <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Try a title, series, or platform" />
+                {query && (
+                  <button
+                    type="button"
+                    className="search-clear-button"
+                    onClick={() => setQuery('')}
+                    aria-label="Clear search"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
                 {isSearching && <span className="input-spinner" />}
               </div>
-              {query && results.length > 0 ? (
-                <div className="search-results">
-                  {results.slice(0, 12).map((movie) => <Poster key={`${movie.id}-${mediaTypeOf(movie)}`} movie={movie} index={0} onSelect={(item) => { setSearchOpen(false); openMovie(item); }} />)}
-                </div>
-              ) : (
-                <div className="search-empty"><Film size={34} /><p>{query ? 'No signal found. Try another title.' : 'Search across movies, series, and anime.'}</p></div>
-              )}
+              <div className="search-helper-row">
+                <span>{query ? (isSearching ? 'Scanning the catalog…' : `${Math.min(results.length, 12)} ${results.length === 1 ? 'match' : 'matches'} found`) : 'Start with a title, a character, or a platform.'}</span>
+                <span className="search-helper-key">ESC <i>to close</i></span>
+              </div>
+              <div className="search-content">
+                {query && results.length > 0 ? (
+                  <>
+                    <div className="search-results-heading">
+                      <div>
+                        <span className="section-eyebrow">Catalog results</span>
+                        <strong>{results.length > 12 ? '12+' : results.length} signals</strong>
+                      </div>
+                      <span>Films <i /> Series <i /> Anime</span>
+                    </div>
+                    <div className="search-results">
+                      {results.slice(0, 12).map((movie, index) => <Poster key={`${movie.id}-${mediaTypeOf(movie)}`} movie={movie} index={index} onSelect={(item) => { setSearchOpen(false); openMovie(item); }} />)}
+                    </div>
+                  </>
+                ) : (
+                  <div className={`search-empty${query ? ' is-no-results' : ''}`}>
+                    <span className="search-empty-icon">{query ? <Film size={28} /> : <Search size={28} />}</span>
+                    <span className="section-eyebrow">{query ? 'No matches yet' : 'Open the catalog'}</span>
+                    <h3>{query ? 'Nothing in this signal.' : 'What are you in the mood for?'}</h3>
+                    <p>{query ? 'Try another title, spelling, or platform.' : 'Search by title, series, or platform and we’ll bring the screening room to you.'}</p>
+                    {!query && <div className="search-empty-chips"><span>Films</span><span>Series</span><span>Anime</span><span>Platforms</span></div>}
+                  </div>
+                )}
+              </div>
             </div>
           </motion.div>
         )}
         {selectedMovie && (
-          <motion.div className="detail-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedMovie(null)}>
-            <motion.div className="detail-card" initial={{ y: 26, scale: 0.96 }} animate={{ y: 0, scale: 1 }} onClick={(event) => event.stopPropagation()}>
-              <button className="detail-close" type="button" onClick={() => setSelectedMovie(null)} aria-label="Close details"><X /></button>
-              <div className="detail-art">
-                {selectedMovie.backdrop_path && <Image src={`${IMAGE_URL}${selectedMovie.backdrop_path}`} alt="" fill sizes="700px" />}
-                <div />
-              </div>
-              <div className="detail-body">
-                <span className="section-eyebrow">{mediaTypeOf(selectedMovie) === 'tv' ? 'Series' : 'Feature film'} / {yearOf(selectedMovie)}</span>
-                <h2>{titleOf(selectedMovie)}</h2>
-                <div className="detail-meta"><span><Star size={14} fill="currentColor" /> {selectedMovie.vote_average?.toFixed(1)}</span><span>{selectedMovie.overview ? 'Available now' : 'Coming into view'}</span></div>
-                <p>{selectedMovie.overview || 'A story without a synopsis yet. Press play to enter.'}</p>
-                <button className="button-primary" type="button" onClick={() => startMovie(selectedMovie)}><Play size={16} fill="currentColor" /> Enter the story</button>
-              </div>
-            </motion.div>
-          </motion.div>
+          <MovieDetailModal
+            movie={selectedMovie}
+            genres={genres}
+            onClose={() => setSelectedMovie(null)}
+            onPlay={startMovie}
+          />
         )}
       </AnimatePresence>
     </main>

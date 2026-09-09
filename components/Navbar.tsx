@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, ChevronDown, History, Trash2, Smartphone, Gamepad2 } from 'lucide-react';
+import Image from 'next/image';
+import { Search, ChevronDown, History, Trash2, Smartphone, Gamepad2, Menu, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useScroll } from '../lib/hooks/useScroll';
 import { useAppContext } from '../lib/context/AppContext';
@@ -15,8 +16,8 @@ interface NavbarProps {
 }
 
 const SECTIONS = [
-  { id: 'movies', label: 'Movies', keyHint: 'LB' },
-  { id: 'tv', label: 'TV Series', keyHint: 'RB' },
+  { id: 'films', label: 'Movies', keyHint: 'LB' },
+  { id: 'series', label: 'TV Series', keyHint: 'RB' },
   { id: 'action', label: 'Action', keyHint: 'X' },
   { id: 'anime', label: 'Anime', keyHint: 'Y' },
 ];
@@ -108,6 +109,16 @@ export default function Navbar({ onSearchClick }: NavbarProps) {
 
         {/* Right Side: Xbox Controller Actions (Search, Download App, History) */}
         <div className="flex items-center space-x-2 md:space-x-3">
+          <button
+            type="button"
+            onClick={() => setIsMobileBrowseOpen((open) => !open)}
+            aria-label={isMobileBrowseOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-expanded={isMobileBrowseOpen}
+            className="lg:hidden w-9 h-9 flex items-center justify-center bg-white text-black border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
+          >
+            {isMobileBrowseOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+          </button>
+
           {/* APK Download Button */}
           <button
             onClick={() => setIsDownloadModalOpen(true)}
@@ -167,9 +178,11 @@ export default function Navbar({ onSearchClick }: NavbarProps) {
                         className="flex items-center space-x-3 p-2 bg-yellow-100 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-[#FFE600] cursor-pointer transition-colors"
                       >
                         {item.poster_path && (
-                          <img
+                          <Image
                             src={`https://image.tmdb.org/t/p/w92${item.poster_path}`}
-                            alt={item.title || item.name}
+                            alt={item.title || item.name || 'Movie poster'}
+                            width={40}
+                            height={56}
                             className="w-10 h-14 object-cover border-2 border-black shrink-0"
                           />
                         )}
@@ -190,6 +203,25 @@ export default function Navbar({ onSearchClick }: NavbarProps) {
           )}
         </div>
       </nav>
+
+      {isMobileBrowseOpen && (
+        <div className="lg:hidden fixed top-[65px] left-3 right-3 z-40 max-h-[calc(100vh-80px)] overflow-y-auto bg-[#0F1015] border-4 border-black p-3 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <button type="button" onClick={() => { setIsMobileBrowseOpen(false); router.push('/'); }} className="px-3 py-2 text-left text-xs font-black uppercase bg-[#107C10] text-white border-2 border-black">Home</button>
+            {SECTIONS.map((section) => (
+              <button type="button" key={section.id} onClick={() => goToSection(section.id)} className="px-3 py-2 text-left text-xs font-black uppercase bg-white text-black border-2 border-black">{section.label}</button>
+            ))}
+          </div>
+          <div className="border-t-2 border-white/20 pt-3">
+            <p className="mb-2 text-[11px] font-black uppercase tracking-wider text-[#FFE600]">Genres</p>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(genres).map(([id, name]) => (
+                <button type="button" key={id} onClick={() => { setIsMobileBrowseOpen(false); router.push(`/genre/${id}`); }} className="px-3 py-2 text-left text-xs font-bold text-white bg-black border-2 border-white/20 hover:bg-[#FFE600] hover:text-black">{name}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* APK Download Modal */}
       <DownloadAppModal

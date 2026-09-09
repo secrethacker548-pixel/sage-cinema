@@ -1,110 +1,170 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Star, Play } from 'lucide-react';
+import { Building2, Clock3, Globe2, Play, Star, Users, X } from 'lucide-react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import type { TMDBMovie } from '../types/tmdb';
 
 const IMG_URL = 'https://image.tmdb.org/t/p/original';
+const PROFILE_URL = 'https://image.tmdb.org/t/p/w185';
+
+type MovieCastMember = {
+  id: number;
+  name: string;
+  character?: string;
+  profile_path?: string | null;
+};
+
+type MovieDetails = TMDBMovie & {
+  tagline?: string;
+  runtime?: number;
+  episode_run_time?: number[];
+  status?: string;
+  original_language?: string;
+  credits?: { cast?: MovieCastMember[] };
+};
 
 interface MovieDetailModalProps {
   movie: TMDBMovie;
   onClose: () => void;
   genres: Record<number, string>;
+  onPlay?: (movie: TMDBMovie) => void;
 }
 
-export default function MovieDetailModal({ movie, onClose, genres }: MovieDetailModalProps) {
+export default function MovieDetailModal({ movie, onClose, genres, onPlay }: MovieDetailModalProps) {
   const router = useRouter();
+  const [details, setDetails] = useState<MovieDetails>(movie);
+  const [loadedDetailsKey, setLoadedDetailsKey] = useState<string | null>(null);
+  const mediaType = movie.media_type || (movie.first_air_date ? 'tv' : 'movie');
+  const detailsKey = `${mediaType}:${movie.id}`;
+  const activeDetails: MovieDetails = details.id === movie.id ? details : movie;
+  const isLoadingDetails = loadedDetailsKey !== detailsKey;
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch(`/api/movie/${movie.id}?type=${mediaType}`, { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: MovieDetails | null) => {
+        if (data && !controller.signal.aborted) setDetails(data);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadedDetailsKey(detailsKey);
+      });
+
+    return () => controller.abort();
+  }, [detailsKey, mediaType, movie.id]);
+
+  const title = activeDetails.title || activeDetails.name || 'Untitled';
+  const year = (activeDetails.release_date || activeDetails.first_air_date || '').slice(0, 4) || '—';
+  const genreNames = activeDetails.genres?.map((genre) => genre.name).slice(0, 5)
+    || activeDetails.genre_ids?.map((id) => genres[id]).filter(Boolean).slice(0, 5)
+    || [];
+  const studioNames = activeDetails.production_companies?.map((company) => company.name).filter(Boolean).slice(0, 4) || [];
+  const cast = activeDetails.credits?.cast?.filter((member) => member.name).slice(0, 8) || [];
+  const runtime = activeDetails.runtime || activeDetails.episode_run_time?.[0];
+  const runtimeLabel = runtime ? runtime >= 60 ? `${Math.floor(runtime / 60)}h ${runtime % 60}m` : `${runtime}m` : '—';
+  const statusLabel = activeDetails.status === 'Released' ? 'Available now' : activeDetails.status || 'Available now';
 
   const handlePlay = () => {
-    const slug = (movie.title || movie.name || '')
+    onClose();
+    if (onPlay) {
+      onPlay(activeDetails);
+      return;
+    }
+    const slug = title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
-    const mediaType = movie.media_type || (movie.first_air_date ? 'tv' : 'movie');
-    onClose();
     router.push(`/movie/${movie.id}/${mediaType}-${slug}`);
   };
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/95 overflow-y-auto"
+      className="detail-layer"
+      onClick={onClose}
     >
-      <button 
-        onClick={onClose}
-        className="fixed top-5 left-5 z-[60] bg-black/60 text-white rounded-full p-2 hover:bg-netflix-red transition"
+      <motion.div
+        className="detail-card"
+        initial={{ y: 26, scale: 0.96 }}
+        animate={{ y: 0, scale: 1 }}
+        onClick={(event) => event.stopPropagation()}
       >
-        <ArrowLeft className="w-6 h-6" />
-      </button>
-
-      <div className="w-full max-w-7xl mx-auto px-4 md:px-8 py-16">
-        <div className="mb-6 text-center md:text-left">
-          <h2 className="text-3xl sm:text-4xl md:text-6xl font-extrabold mb-4 leading-tight">
-            {movie.title || movie.name}
-          </h2>
-          <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm md:text-base">
-            <span className="text-yellow-400 font-semibold flex items-center">
-              <Star className="w-4 h-4 mr-1 fill-current" /> {movie.vote_average?.toFixed(1)}
-            </span>
-            <span className="text-neutral-400">
-              {movie.genre_ids?.map(id => genres[id]).filter(Boolean).join(', ')}
-            </span>
-            <span className="text-neutral-400">
-              {movie.release_date || movie.first_air_date}
-            </span>
-          </div>
+        <button className="detail-close" type="button" onClick={onClose} aria-label="Close details">
+          <X size={18} />
+        </button>
+        <div className="detail-art">
+          {activeDetails.backdrop_path ? (
+            <Image src={`${IMG_URL}${activeDetails.backdrop_path}`} alt="" fill sizes="700px" />
+          ) : (
+            <div />
+          )}
         </div>
-
-        <div className="flex flex-col md:flex-row gap-8 mb-8">
-          <div className="w-full md:w-[70%] aspect-video bg-black rounded-lg overflow-hidden shadow-2xl relative">
-            {movie.backdrop_path ? (
-              <Image src={`${IMG_URL}${movie.backdrop_path}`} alt="" fill className="object-cover opacity-70" sizes="(max-width: 768px) 100vw, 70vw" />
-            ) : <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 to-black" />}
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-black/10" />
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center">
-              <span className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-lime-300">Unified player</span>
-              <h3 className="mb-5 text-2xl font-bold md:text-3xl">Ready for the screening room</h3>
-              <button onClick={handlePlay} className="bg-lime-300 px-6 py-3 font-bold text-black transition hover:bg-cyan-300">
-                <Play className="mr-2 inline h-5 w-5 fill-current" /> Open clean player
-              </button>
-            </div>
+        <div className="detail-body">
+          <span className="section-eyebrow">{mediaType === 'tv' ? 'Series' : 'Feature film'} / {year}</span>
+          <h2>{title}</h2>
+          <div className="detail-meta">
+            <span><Star size={14} fill="currentColor" /> {activeDetails.vote_average?.toFixed(1) || '—'}</span>
+            <span>{statusLabel}</span>
+            <span>{activeDetails.release_date || activeDetails.first_air_date ? year : '—'}</span>
           </div>
+          {activeDetails.tagline && <p className="detail-tagline">{activeDetails.tagline}</p>}
+          <p>{activeDetails.overview || 'A story without a synopsis yet. Press play to enter.'}</p>
+          <button className="button-primary" type="button" onClick={handlePlay}>
+            <Play size={16} fill="currentColor" /> Enter the story
+          </button>
 
-          <div className="w-full md:w-[30%] flex flex-col gap-6">
-            <div className="relative w-full aspect-[2/3] rounded-xl overflow-hidden shadow-2xl">
-              <Image src={`${IMG_URL}${movie.poster_path || ''}`} alt={movie.title || movie.name || 'Movie Poster'} fill className="object-cover" sizes="(max-width: 768px) 100vw, 30vw" />
+          {isLoadingDetails ? (
+            <div className="detail-loading-copy" role="status">Gathering the full screening notes…</div>
+          ) : (
+            <div className="detail-extra">
+              <div className="detail-fact-grid">
+                <div><Clock3 size={15} /><span>Runtime</span><strong>{runtimeLabel}</strong></div>
+                <div><Globe2 size={15} /><span>Language</span><strong>{activeDetails.original_language?.toUpperCase() || '—'}</strong></div>
+                <div><Building2 size={15} /><span>Studios</span><strong>{studioNames.length || '—'}</strong></div>
+              </div>
+
+              {genreNames.length > 0 && (
+                <section className="detail-info-block">
+                  <div className="detail-info-heading"><span className="section-eyebrow">The signal</span><strong>Genres</strong></div>
+                  <div className="detail-chip-list">
+                    {genreNames.map((genre) => <span key={genre}>{genre}</span>)}
+                  </div>
+                </section>
+              )}
+
+              {studioNames.length > 0 && (
+                <section className="detail-info-block">
+                  <div className="detail-info-heading"><span className="section-eyebrow">Behind the frame</span><strong>Studios</strong></div>
+                  <p className="detail-info-copy">{studioNames.join(' · ')}</p>
+                </section>
+              )}
+
+              {cast.length > 0 && (
+                <section className="detail-info-block">
+                  <div className="detail-info-heading"><span className="section-eyebrow">In the story</span><strong><Users size={15} /> Cast</strong></div>
+                  <div className="detail-cast-grid">
+                    {cast.map((member) => (
+                      <div className="detail-cast-member" key={member.id}>
+                        <span className="detail-cast-avatar">
+                          {member.profile_path ? <Image src={`${PROFILE_URL}${member.profile_path}`} alt="" fill sizes="48px" /> : <Users size={15} />}
+                        </span>
+                        <span><strong>{member.name}</strong><small>{member.character || 'Cast'}</small></span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
-
-            {/* Play Now Button */}
-            <button
-              onClick={handlePlay}
-              className="w-full bg-netflix-red hover:bg-red-700 text-white font-bold py-3 rounded flex items-center justify-center transition transform hover:scale-[1.02]"
-            >
-              <Play className="w-5 h-5 mr-2 fill-current" /> PLAY NOW
-            </button>
-
-            <div className="w-full rounded border border-cyan-400/20 bg-cyan-400/5 p-3 text-center text-sm font-semibold text-cyan-200">
-              Quality and speed are controlled by Sage Cinema.
-            </div>
-
-            <div className="bg-netflix-dark p-4 rounded-lg">
-              <p className="text-sm font-semibold text-neutral-200">Playback sources are normalized into one player.</p>
-              <p className="mt-2 text-sm text-neutral-400">Open the player to choose quality, playback speed, subtitles, and fullscreen.</p>
-            </div>
-          </div>
+          )}
         </div>
-
-        <div className="bg-netflix-dark/50 p-8 rounded-xl">
-          <h3 className="text-2xl font-bold mb-4">Overview</h3>
-          <p className="text-lg text-neutral-300 leading-relaxed max-w-4xl">
-            {movie.overview}
-          </p>
-        </div>
-      </div>
+      </motion.div>
     </motion.div>
   );
 }

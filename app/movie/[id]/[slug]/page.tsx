@@ -7,7 +7,6 @@ import {
   Check,
   ChevronDown,
   Info,
-  MonitorPlay,
   Play,
   RotateCw,
   Sparkles,
@@ -42,6 +41,7 @@ import {
 
 const IMG_URL = 'https://image.tmdb.org/t/p/original';
 const THUMB_URL = 'https://image.tmdb.org/t/p/w500';
+const SOURCE_SERVER_OPTIONS = VIDEO_SERVERS.slice(0, 2);
 
 export default function MovieDetailPage() {
   const params = useParams();
@@ -73,8 +73,6 @@ export default function MovieDetailPage() {
   const isPlayingRef = React.useRef(false);
   const serverRef = React.useRef(DEFAULT_SERVER);
   const isNavScrolled = useScroll(16);
-  const serverNumber = (sid: string) => VIDEO_SERVERS.findIndex((s) => s.id === sid) + 1;
-
   const registerPlaybackAdInteraction = React.useCallback(() => {
     playbackInteractions.current += 1;
     if (playbackInteractions.current % 3 === 0) openAdsterraDirectLink();
@@ -131,16 +129,18 @@ export default function MovieDetailPage() {
           c.name?.toLowerCase().includes('vivamax')
         );
         const studioId = vivamax ? vivamax.id : data.production_companies?.[0]?.id;
-        const endpoint = slug?.includes('tv') ? '/api/tv/collection' : '/api/movies/collection';
+        const isTv = Boolean(data.first_air_date);
+        const endpoint = isTv ? '/api/tv/collection' : '/api/movies/collection';
+        const collectionType = isTv ? 'tv' : 'movie';
 
         try {
           const [generalRes, genreRes, studioRes] = await Promise.all([
             fetch(endpoint).then((response) => response.json()),
             currentGenre
-              ? fetch(`/api/movies/genre/${currentGenre}`).then((response) => response.json())
+              ? fetch(`/api/movies/genre/${currentGenre}?type=${collectionType}`).then((response) => response.json())
               : Promise.resolve({ results: [] }),
             studioId
-              ? fetch(`/api/movies/studio/${studioId}`).then((response) => response.json())
+              ? fetch(`/api/movies/studio/${studioId}?type=${collectionType}`).then((response) => response.json())
               : Promise.resolve({ results: [] }),
           ]);
 
@@ -180,7 +180,11 @@ export default function MovieDetailPage() {
 
     // Restore the browser session's active player when expanding the mini-player.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setServer(storedPlayback.server || DEFAULT_SERVER);
+    setServer(
+      SOURCE_SERVER_OPTIONS.some((item) => item.id === storedPlayback.server)
+        ? storedPlayback.server
+        : DEFAULT_SERVER
+    );
     setLang(storedPlayback.lang || DEFAULT_LANG);
     setSelectedSeason(storedPlayback.season || 1);
     setSelectedEpisode(storedPlayback.episode || 1);
@@ -235,16 +239,19 @@ export default function MovieDetailPage() {
     const type = movie.first_air_date ? 'tv' : 'movie';
     const reqId = ++healthReqId.current;
 
-    setServerHealth(Object.fromEntries(VIDEO_SERVERS.map((item) => [item.id, 'checking'])));
+    setServerHealth(Object.fromEntries(SOURCE_SERVER_OPTIONS.map((item) => [item.id, 'checking'])));
     fetch(
       `/api/video-health/${type}/${movie.id}?season=${selectedSeason}&episode=${selectedEpisode}`
     )
       .then((response) => response.json())
       .then((data) => {
         if (reqId !== healthReqId.current || !data?.servers) return;
-        setServerHealth(data.servers);
-        if (data.servers[serverRef.current] === 'down') {
-          const firstUp = VIDEO_SERVERS.find((item) => data.servers[item.id] === 'up');
+        const scopedHealth = Object.fromEntries(
+          SOURCE_SERVER_OPTIONS.map((item) => [item.id, data.servers[item.id] === 'up' ? 'up' : 'down'])
+        ) as Record<string, ServerStatus>;
+        setServerHealth(scopedHealth);
+        if (scopedHealth[serverRef.current] === 'down') {
+          const firstUp = SOURCE_SERVER_OPTIONS.find((item) => scopedHealth[item.id] === 'up');
           if (firstUp) {
             setServer(firstUp.id);
             if (isPlayingRef.current) loadVideoSource(firstUp.id, lang);
@@ -272,15 +279,9 @@ export default function MovieDetailPage() {
   };
 
   const handleServerChange = (newServer: string) => {
+    if (!SOURCE_SERVER_OPTIONS.some((item) => item.id === newServer) || serverHealth[newServer] === 'down') return;
     setServer(newServer);
     if (isPlaying) loadVideoSource(newServer, lang);
-  };
-
-  const handleNextServer = () => {
-    const currentIndex = VIDEO_SERVERS.findIndex((item) => item.id === server);
-    const nextServer = VIDEO_SERVERS[(currentIndex + 1) % VIDEO_SERVERS.length].id;
-    setServer(nextServer);
-    if (isPlaying) loadVideoSource(nextServer, lang);
   };
 
   const handleLangChange = (newLang: string) => {
@@ -362,7 +363,7 @@ export default function MovieDetailPage() {
 
       <main className="detail-shell">
         <section className="detail-player-column">
-          <div className="nebula-player">
+          <div className={cn('nebula-player', isPlaying && playbackSources.length > 0 && 'nebula-player-live')}>
             <div className={cn('player-chrome', isPlaying && 'player-chrome-live')}>
               <span className="player-state">
                 <span className={cn('player-state-dot', isPlaying ? 'is-live' : 'is-ready')} />
@@ -444,39 +445,38 @@ export default function MovieDetailPage() {
             )}
           </div>
 
-          <div className="player-footer">
-            <div className="player-now-playing">
-              <span className={cn('player-state-dot', isPlaying ? 'is-live' : 'is-ready')} />
-              <span>{isPlaying ? `Streaming ${title}` : 'Your stream is ready when you are'}</span>
+          <section id="playback-sources" className="source-card-under-player" aria-label="Servers">
+            <div className="source-pill-list">
+              {SOURCE_SERVER_OPTIONS.filter((item) => serverHealth[item.id] !== 'down').map((item) => {
+                const index = SOURCE_SERVER_OPTIONS.findIndex((option) => option.id === item.id);
+                const status = serverHealth[item.id];
+                const selected = server === item.id;
+                return (
+                  <button
+                    type="button"
+                    key={item.id}
+                    className={cn('source-pill', selected && 'is-selected', status === 'checking' && 'is-checking')}
+                    onClick={() => {
+                      registerPlaybackAdInteraction();
+                      handleServerChange(item.id);
+                    }}
+                  >
+                    <strong>Server {index + 1}</strong>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                className="source-refresh-pill"
+                onClick={runHealthCheck}
+                disabled={isCheckingHealth}
+                aria-label="Re-check servers"
+                title="Re-check servers"
+              >
+                <RotateCw size={14} />
+              </button>
             </div>
-            {isPlaying && (
-              <div className="player-footer-actions">
-                <button
-                  type="button"
-                  onClick={() => {
-                    registerPlaybackAdInteraction();
-                    loadVideoSource(server, lang);
-                  }}
-                >
-                  <RotateCw size={14} /> Refresh
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    registerPlaybackAdInteraction();
-                    handleNextServer();
-                  }}
-                >
-                  Next source <span>↗</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="player-tip">
-            <Sparkles size={14} />
-            <span>{isCheckingHealth ? 'Checking source reachability…' : 'Sources are checked before playback; switch source if needed.'}</span>
-          </div>
+          </section>
         </section>
 
         <aside className="detail-sidebar">
@@ -526,40 +526,6 @@ export default function MovieDetailPage() {
             <div><span>Release</span><strong>{year}</strong></div>
             <div><span>Format</span><strong>1080p</strong></div>
           </div>
-
-          <section id="playback-sources" className="control-card source-card">
-            <div className="control-card-heading">
-              <div><span className="detail-eyebrow">Playback</span><h2>Choose a source</h2></div>
-              <MonitorPlay size={20} />
-            </div>
-            <div className="source-grid">
-              {VIDEO_SERVERS.map((item, index) => {
-                const status = serverHealth[item.id];
-                const selected = server === item.id;
-                return (
-                  <button
-                    type="button"
-                    key={item.id}
-                    className={cn('source-tile', selected && 'is-selected')}
-                    onClick={() => {
-                      registerPlaybackAdInteraction();
-                      handleServerChange(item.id);
-                    }}
-                  >
-                    <span className="source-tile-top"><span>Source {String(index + 1).padStart(2, '0')}</span><i className={cn(status === 'up' && 'is-up', status === 'down' && 'is-down', status === 'checking' && 'is-checking')} /></span>
-                    <strong>{item.id}</strong>
-                    <small>{status === 'down' ? 'Offline' : status === 'checking' ? 'Checking' : status === 'up' ? 'Online' : 'Ready'}</small>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="source-card-footer">
-              <span><i className="source-legend-dot" /> {isCheckingHealth ? 'Checking sources…' : `${serverNumber(server)} selected`}</span>
-              <button type="button" onClick={runHealthCheck} disabled={isCheckingHealth}>
-                <RotateCw size={13} /> {isCheckingHealth ? 'Checking' : 'Re-check'}
-              </button>
-            </div>
-          </section>
 
           {(movie.first_air_date || movie.number_of_seasons) && (
             <section className="control-card episode-card">
@@ -634,22 +600,6 @@ export default function MovieDetailPage() {
               <ChevronDown size={17} />
             </summary>
             <div className="settings-body">
-              <label className="select-label" htmlFor="server-select">Streaming source</label>
-              <div className="select-shell">
-                <select
-                  id="server-select"
-                  value={server}
-                  onChange={(event) => {
-                    registerPlaybackAdInteraction();
-                    handleServerChange(event.target.value);
-                  }}
-                >
-                  {VIDEO_SERVERS.map((item, index) => (
-                    <option key={item.id} value={item.id}>Source {index + 1} · {item.id}</option>
-                  ))}
-                </select>
-                <ChevronDown size={16} />
-              </div>
               <label className="select-label" htmlFor="language-select">Subtitle language</label>
               <div className="select-shell">
                 <select
@@ -691,7 +641,7 @@ export default function MovieDetailPage() {
                   return (
                     <button type="button" key={item.id} className="similar-card" onClick={() => goToMovie(item)}>
                       <span className="similar-poster">
-                        {item.poster_path ? <Image src={`${THUMB_URL}${item.poster_path}`} alt={item.title || item.name || ''} fill sizes="120px" /> : <span className="poster-fallback-mark">S</span>}
+                        {item.poster_path ? <Image src={`${THUMB_URL}${item.poster_path}`} alt={item.title || item.name || ''} fill sizes="(max-width: 620px) 120px, 150px" /> : <span className="poster-fallback-mark">S</span>}
                         <span className="similar-play"><Play size={16} fill="currentColor" /></span>
                         {isSameStudio && <em>Studio pick</em>}
                       </span>

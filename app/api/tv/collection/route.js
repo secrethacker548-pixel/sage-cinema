@@ -8,8 +8,6 @@ export async function GET(request) {
   const page = parseInt(searchParams.get('page') || '1');
   const apiKey = process.env.TMDB_API_KEY;
   const results = [];
-  const romanceGenreId = 10749;
-
   try {
     const startTmdbPage = (page - 1) * 2 + 1;
     
@@ -18,7 +16,7 @@ export async function GET(request) {
       const tmdbPage = startTmdbPage + i;
       promises.push(
         fetch(
-          `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&with_genres=${romanceGenreId}&sort_by=popularity.desc&page=${tmdbPage}`,
+          `https://api.themoviedb.org/3/tv/popular?api_key=${apiKey}&page=${tmdbPage}`,
           { next: { revalidate: 1800 } }
         ).then(res => res.json())
       );
@@ -27,7 +25,7 @@ export async function GET(request) {
     const responses = await Promise.all(promises);
     responses.forEach(data => {
       if (data.results) {
-        data.results.forEach(item => item.media_type = 'movie');
+        data.results.forEach(item => item.media_type = 'tv');
         results.push(...data.results);
       }
     });

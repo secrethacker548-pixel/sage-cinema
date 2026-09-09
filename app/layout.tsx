@@ -1,18 +1,18 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import type { Viewport } from 'next';
-import { Montserrat } from 'next/font/google';
+import { Inter } from 'next/font/google';
 import type { ReactNode } from 'react';
 import ErrorBoundary from '../components/ErrorBoundary';
 import PwaRegister from '../components/PwaRegister';
 import ScrollToTop from '../components/ScrollToTop';
 import { AppProvider } from '../lib/context/AppContext';
 
-const montserrat = Montserrat({
+const inter = Inter({
   subsets: ['latin'],
   display: 'swap',
-  variable: '--font-montserrat',
-  weight: ['500', '600', '700', '800'],
+  variable: '--font-inter',
+  weight: ['400', '500', '600', '700', '800', '900'],
 });
 
 export const metadata: Metadata = {
@@ -51,7 +51,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${montserrat.variable} scroll-smooth`}>
+    <html lang="en" className={`${inter.variable} scroll-smooth`}>
       <body>
         <ErrorBoundary>
           <AppProvider>

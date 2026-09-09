@@ -115,9 +115,10 @@ export default function SearchModal({
     >
       <button
         onClick={onClose}
+        aria-label="Close search"
         className="absolute top-4 right-4 bg-[#FF3366] text-white font-black text-xs p-2.5 border-3 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-black transition active:scale-95"
       >
-        <X className="w-6 h-6 stroke-[3]" />
+        Close
       </button>
 
       <div className="w-full max-w-3xl mx-auto mb-8">
