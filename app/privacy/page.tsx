@@ -52,6 +52,7 @@ export default function PrivacyPage() {
                 <li><strong>TMDB:</strong> catalogue metadata, artwork, ratings, and related discovery data.</li>
                 <li><strong>Video and subtitle providers:</strong> selected playback sources and caption files may be requested when you start a screening or search for captions.</li>
                 <li><strong>Advertising providers:</strong> optional Adsterra scripts or sponsored placements may load only after advertising consent when the feature is enabled.</li>
+                <li><strong>Analytics storage:</strong> optional aggregate counters are stored in the site’s configured server-side Redis provider so they can survive serverless requests and deployments.</li>
                 <li><strong>External links:</strong> social profiles, Buy Me a Coffee, YouTube trailers, and other links are governed by those services’ own policies when you visit them.</li>
               </ul>
             </section>
@@ -64,7 +65,7 @@ export default function PrivacyPage() {
 
             <section>
               <h2>Retention and security</h2>
-              <p>Browser-held data remains until you clear it or remove the site’s storage. Aggregate counters may remain in the hosting runtime while the service is operating; they are not intended to identify individual visitors. We use reasonable technical measures, but no internet service can guarantee absolute security.</p>
+              <p>Browser-held data remains until you clear it or remove the site’s storage. Optional aggregate counters are retained in the configured server-side analytics store while the service is operating; they are not intended to identify individual visitors. We use reasonable technical measures, but no internet service can guarantee absolute security.</p>
             </section>
 
             <section>

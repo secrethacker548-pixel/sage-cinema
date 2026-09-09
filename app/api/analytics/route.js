@@ -1,52 +1,42 @@
 import { NextResponse } from 'next/server';
-
-const STATS_KEY = Symbol.for('sage-cinema.analytics.stats');
-
-function getStats() {
-  if (!globalThis[STATS_KEY]) {
-    globalThis[STATS_KEY] = {
-      totalVisits: 0,
-      movieViews: {},
-    };
-  }
-
-  return globalThis[STATS_KEY];
-}
-
-function snapshot() {
-  const stats = getStats();
-  return {
-    totalVisits: stats.totalVisits,
-    movieViews: { ...stats.movieViews },
-  };
-}
+import { getPersistentStats, recordAnalyticsEvent } from '../../../lib/analyticsStore';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function GET() {
-  return NextResponse.json(snapshot(), {
-    headers: { 'Cache-Control': 'no-store' },
-  });
+  try {
+    return NextResponse.json(await getPersistentStats(), {
+      headers: { 'Cache-Control': 'no-store' },
+    });
+  } catch (error) {
+    console.error('Analytics storage unavailable:', error);
+    return NextResponse.json({ error: 'Analytics storage is not configured' }, { status: 503 });
+  }
 }
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    const stats = getStats();
-
     if (body?.type === 'visit') {
-      stats.totalVisits += 1;
+      return NextResponse.json(await recordAnalyticsEvent({ type: 'visit' }), {
+        headers: { 'Cache-Control': 'no-store' },
+      });
     }
 
-    if (body?.type === 'movie_view' && body.movieId !== undefined) {
-      const movieId = String(body.movieId);
-      stats.movieViews[movieId] = (stats.movieViews[movieId] || 0) + 1;
+    const movieId = String(body?.movieId ?? '');
+    if (body?.type === 'movie_view' && /^\d+$/.test(movieId)) {
+      return NextResponse.json(await recordAnalyticsEvent({ type: 'movie_view', movieId }), {
+        headers: { 'Cache-Control': 'no-store' },
+      });
     }
 
-    return NextResponse.json(snapshot(), {
-      headers: { 'Cache-Control': 'no-store' },
-    });
-  } catch {
     return NextResponse.json({ error: 'Invalid analytics event' }, { status: 400 });
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      return NextResponse.json({ error: 'Invalid analytics event' }, { status: 400 });
+    }
+    console.error('Analytics storage unavailable:', error);
+    return NextResponse.json({ error: 'Analytics storage is not configured' }, { status: 503 });
   }
 }

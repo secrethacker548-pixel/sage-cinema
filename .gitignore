@@ -37,3 +37,6 @@ public/downloads/
 
 # Local Netlify folder
 .netlify
+
+# Local analytics fallback
+.local-data/
