@@ -5,18 +5,21 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
   Command,
   Film,
   Info,
   Play,
   Search,
-  Sparkles,
   Star,
   X,
 } from 'lucide-react';
-import { useEffect, useState, type CSSProperties, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { useSearch } from '../lib/hooks/useSearch';
 import { useWatchHistory } from '../lib/hooks/useWatchHistory';
+import MiniPlayer from '../components/MiniPlayer';
+import { clearActivePlayback, readActivePlayback, type ActivePlayback } from '../lib/activePlayback';
 import type { TMDBMovie } from '../types/tmdb';
 
 const IMAGE_URL = 'https://image.tmdb.org/t/p/original';
@@ -118,7 +121,40 @@ function Section({
   items: TMDBMovie[];
   onSelect: (movie: TMDBMovie) => void;
 }) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [canScrollPrev, setCanScrollPrev] = useState(false);
+  const [canScrollNext, setCanScrollNext] = useState(false);
+
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+
+    const updateScrollState = () => {
+      setCanScrollPrev(row.scrollLeft > 4);
+      setCanScrollNext(row.scrollLeft + row.clientWidth < row.scrollWidth - 4);
+    };
+
+    updateScrollState();
+    row.addEventListener('scroll', updateScrollState, { passive: true });
+    window.addEventListener('resize', updateScrollState);
+
+    return () => {
+      row.removeEventListener('scroll', updateScrollState);
+      window.removeEventListener('resize', updateScrollState);
+    };
+  }, [items.length]);
+
+  const scroll = (direction: 'prev' | 'next') => {
+    const row = rowRef.current;
+    if (!row) return;
+    row.scrollBy({
+      left: direction === 'prev' ? -row.clientWidth * 0.82 : row.clientWidth * 0.82,
+      behavior: 'smooth',
+    });
+  };
+
   if (items.length === 0) return null;
+
   return (
     <motion.section
       id={id}
@@ -133,11 +169,35 @@ function Section({
           <span className="section-eyebrow">{eyebrow}</span>
           <h2>{title}</h2>
         </div>
-        <span className="section-note">{note}</span>
+        <div className="section-heading-actions">
+          <span className="section-note">{note}</span>
+          <div className="section-controls" aria-label={`${title} navigation`}>
+            <button
+              type="button"
+              className="section-scroll-button"
+              onClick={() => scroll('prev')}
+              disabled={!canScrollPrev}
+              aria-label={`Previous ${title} titles`}
+            >
+              <ChevronLeft size={17} strokeWidth={2.5} />
+              <span>Prev</span>
+            </button>
+            <button
+              type="button"
+              className="section-scroll-button"
+              onClick={() => scroll('next')}
+              disabled={!canScrollNext}
+              aria-label={`Next ${title} titles`}
+            >
+              <span>Next</span>
+              <ChevronRight size={17} strokeWidth={2.5} />
+            </button>
+          </div>
+        </div>
       </div>
       <div className="shelf-viewport">
-        <div className="shelf-track">
-          {items.slice(0, 14).map((movie, index) => (
+        <div className="shelf-track" ref={rowRef}>
+          {items.slice(0, 24).map((movie, index) => (
             <Poster key={`${movie.id}-${index}`} movie={movie} index={index} onSelect={onSelect} />
           ))}
         </div>
@@ -156,10 +216,21 @@ export default function Home() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [heroTilt, setHeroTilt] = useState({ x: 0, y: 0 });
   const [scrollY, setScrollY] = useState(0);
+  const [activePlayback, setActivePlayback] = useState<ActivePlayback | null>(null);
   const { history, addToHistory } = useWatchHistory();
   const { query, setQuery, results, isSearching } = useSearch(450);
 
   const featured = collections.trending[featuredIndex] || collections.latest[0] || null;
+
+  useEffect(() => {
+    const storedPlayback = readActivePlayback();
+    if (storedPlayback) {
+      // The session store is an external browser-only source of truth.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setActivePlayback(storedPlayback);
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
     async function loadCollections() {
@@ -214,8 +285,20 @@ export default function Home() {
   const openMovie = (movie: TMDBMovie) => setSelectedMovie(movie);
 
   const startMovie = (movie: TMDBMovie) => {
+    clearActivePlayback();
     addToHistory(movie);
     router.push(`/movie/${movie.id}/${mediaTypeOf(movie)}-${movieSlug(movie)}`);
+  };
+
+  const openActivePlayback = () => {
+    if (!activePlayback) return;
+    const movie = activePlayback.movie;
+    router.push(`/movie/${movie.id}/${mediaTypeOf(movie)}-${movieSlug(movie)}`);
+  };
+
+  const closeActivePlayback = () => {
+    clearActivePlayback();
+    setActivePlayback(null);
   };
 
   const handleHeroPointer = (event: PointerEvent<HTMLElement>) => {
@@ -273,7 +356,7 @@ export default function Home() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <Sparkles size={14} /> SAGE CINEMA / SIGNAL 01
+            SAGE CINEMA / SIGNAL 01
           </motion.div>
           <AnimatePresence mode="wait">
             {featured ? (
@@ -373,10 +456,50 @@ export default function Home() {
       </div>
 
       <footer className="site-footer">
-        <div className="brand-mark"><span className="brand-orbit"><span /></span><span>SAGE<span>CINEMA</span></span></div>
-        <p>Stories worth staying up for.</p>
-        <span>TMDB-powered discovery</span>
+        <div className="site-footer-inner">
+          <div className="site-footer-top">
+            <div className="site-footer-lede">
+              <span className="section-eyebrow">Your next screening</span>
+              <h2>Stay curious.<br /><em>Keep watching.</em></h2>
+              <a className="site-footer-arrow" href="#top" aria-label="Back to the top">
+                <ArrowUpRight size={22} />
+              </a>
+            </div>
+            <div className="site-footer-links">
+              <div className="site-footer-column">
+                <span>Explore</span>
+                <a href="#top">Home</a>
+                <a href="#films">Films</a>
+                <a href="#series">Series</a>
+                <a href="#anime">Anime</a>
+              </div>
+              <div className="site-footer-column">
+                <span>Find your next</span>
+                <a href="#continue">Continue watching</a>
+                <a href="#latest">Fresh arrivals</a>
+                <a href="#top-rated">Critics&apos; orbit</a>
+                <a href="#action">High velocity</a>
+              </div>
+            </div>
+          </div>
+          <div className="site-footer-bottom">
+            <div className="brand-mark"><span className="brand-orbit"><span /></span><span>SAGE<span>CINEMA</span></span></div>
+            <p>Stories worth staying up for.</p>
+            <span>TMDB-powered discovery</span>
+            <span>© {new Date().getFullYear()} Sage Cinema</span>
+          </div>
+        </div>
       </footer>
+
+      <AnimatePresence>
+        {activePlayback && (
+          <MiniPlayer
+            playback={activePlayback}
+            onOpen={openActivePlayback}
+            onClose={closeActivePlayback}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {searchOpen && (

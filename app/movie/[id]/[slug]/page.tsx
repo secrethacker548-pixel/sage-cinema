@@ -20,6 +20,11 @@ import { useAppContext } from '../../../../lib/context/AppContext';
 import { useWatchHistory } from '../../../../lib/hooks/useWatchHistory';
 import { useWatchedEpisodes } from '../../../../lib/hooks/useWatchedEpisodes';
 import { getSimilarMovies } from '../../../../lib/recommendations';
+import {
+  clearActivePlayback,
+  readActivePlayback,
+  saveActivePlayback,
+} from '../../../../lib/activePlayback';
 import type { TMDBMovie } from '../../../../types/tmdb';
 import { cn } from '../../../../lib/utils';
 import { AdsterraNativeBanner, openAdsterraDirectLink } from '../../../../components/Adsterra';
@@ -68,6 +73,22 @@ export default function MovieDetailPage() {
     playbackInteractions.current += 1;
     if (playbackInteractions.current % 3 === 0) openAdsterraDirectLink();
   }, []);
+
+  const persistActivePlayback = React.useCallback(() => {
+    if (!movie || !isPlaying || !embedUrl) return;
+    saveActivePlayback({
+      movie,
+      embedUrl,
+      server,
+      lang,
+      season: selectedSeason,
+      episode: selectedEpisode,
+    });
+  }, [movie, isPlaying, embedUrl, server, lang, selectedSeason, selectedEpisode]);
+
+  useEffect(() => {
+    persistActivePlayback();
+  }, [persistActivePlayback]);
 
   useEffect(() => {
     const fetchMovieDetails = async () => {
@@ -135,6 +156,21 @@ export default function MovieDetailPage() {
 
     if (id) fetchMovieDetails();
   }, [id, slug]);
+
+  useEffect(() => {
+    if (!movie) return;
+    const storedPlayback = readActivePlayback();
+    if (!storedPlayback || storedPlayback.movie.id !== movie.id) return;
+
+    // Restore the browser session's active player when expanding the mini-player.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setServer(storedPlayback.server || DEFAULT_SERVER);
+    setLang(storedPlayback.lang || DEFAULT_LANG);
+    setSelectedSeason(storedPlayback.season || 1);
+    setSelectedEpisode(storedPlayback.episode || 1);
+    setEmbedUrl(storedPlayback.embedUrl);
+    setIsPlaying(true);
+  }, [movie]);
 
   const loadVideoSource = React.useCallback(async (
     selectedServer: string,
@@ -237,6 +273,12 @@ export default function MovieDetailPage() {
     setIsPlaying(false);
     setEmbedUrl('');
     setShowUpNext(false);
+    clearActivePlayback();
+  };
+
+  const handleLeaveToDiscovery = () => {
+    persistActivePlayback();
+    router.push('/');
   };
 
   const goToMovie = (item: TMDBMovie) => {
@@ -245,6 +287,7 @@ export default function MovieDetailPage() {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
     const mediaType = item.media_type || (item.first_air_date ? 'tv' : 'movie');
+    clearActivePlayback();
     router.push(`/movie/${item.id}/${mediaType}-${itemSlug}`);
   };
 
@@ -289,7 +332,7 @@ export default function MovieDetailPage() {
       <div className="nebula-glow nebula-glow-cyan" />
 
       <header className="nebula-nav">
-        <button type="button" className="nebula-back" onClick={() => router.back()}>
+        <button type="button" className="nebula-back" onClick={handleLeaveToDiscovery}>
           <ArrowLeft size={17} />
           <span>Back to discovery</span>
         </button>
@@ -297,7 +340,7 @@ export default function MovieDetailPage() {
           <span className="nebula-orbit"><span /></span>
           <span>SAGE <b>CINEMA</b></span>
         </div>
-        <button type="button" className="nebula-home" onClick={() => router.push('/')}>
+        <button type="button" className="nebula-home" onClick={handleLeaveToDiscovery}>
           Home <span>↗</span>
         </button>
       </header>

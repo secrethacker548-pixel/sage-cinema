@@ -1,7 +1,9 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import type { Viewport } from 'next';
 import type { ReactNode } from 'react';
 import ErrorBoundary from '../components/ErrorBoundary';
+import PwaRegister from '../components/PwaRegister';
 import { AppProvider } from '../lib/context/AppContext';
 
 export const metadata: Metadata = {
@@ -15,7 +17,23 @@ export const metadata: Metadata = {
   authors: [{ name: 'Sage Cinema' }],
   creator: 'Sage Cinema',
   robots: { index: true, follow: true },
-  icons: { icon: '/favicon.ico' },
+  manifest: '/manifest.json',
+  icons: {
+    icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
+    apple: [{ url: '/icon.svg', type: 'image/svg+xml' }],
+  },
+  appleWebApp: {
+    capable: true,
+    title: 'Sage Cinema',
+    statusBarStyle: 'black-translucent',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#080a12',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -23,7 +41,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className="scroll-smooth">
       <body>
         <ErrorBoundary>
-          <AppProvider>{children}</AppProvider>
+          <AppProvider>
+            <PwaRegister />
+            {children}
+          </AppProvider>
         </ErrorBoundary>
       </body>
     </html>
