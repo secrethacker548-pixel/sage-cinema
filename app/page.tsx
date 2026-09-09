@@ -315,7 +315,7 @@ export default function Home() {
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
 
-      <header className="topbar">
+      <header className={`topbar${scrollY > 24 ? ' is-scrolled' : ''}`}>
         <a className="brand-mark" href="#top" aria-label="Sage Cinema home">
           <span className="brand-orbit"><span /></span>
           <span>SAGE<span>CINEMA</span></span>

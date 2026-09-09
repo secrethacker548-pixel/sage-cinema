@@ -6,7 +6,10 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
+  Gauge,
   Info,
+  Maximize2,
+  Minimize2,
   MonitorPlay,
   Play,
   RotateCw,
@@ -19,6 +22,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAppContext } from '../../../../lib/context/AppContext';
 import { useWatchHistory } from '../../../../lib/hooks/useWatchHistory';
 import { useWatchedEpisodes } from '../../../../lib/hooks/useWatchedEpisodes';
+import { useScroll } from '../../../../lib/hooks/useScroll';
 import { getSimilarMovies } from '../../../../lib/recommendations';
 import {
   clearActivePlayback,
@@ -62,16 +66,39 @@ export default function MovieDetailPage() {
   const [isDescExpanded, setIsDescExpanded] = useState(false);
   const [similarMovies, setSimilarMovies] = useState<TMDBMovie[]>([]);
   const [showUpNext, setShowUpNext] = useState(false);
+  const [showPlayerControls, setShowPlayerControls] = useState(false);
+  const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
 
   type ServerStatus = 'up' | 'down' | 'checking';
   const [serverHealth, setServerHealth] = useState<Record<string, ServerStatus>>({});
   const healthReqId = React.useRef(0);
   const playbackInteractions = React.useRef(0);
+  const isPlayingRef = React.useRef(false);
+  const serverRef = React.useRef(DEFAULT_SERVER);
+  const playerRef = React.useRef<HTMLDivElement>(null);
+  const isNavScrolled = useScroll(16);
   const serverNumber = (sid: string) => VIDEO_SERVERS.findIndex((s) => s.id === sid) + 1;
 
   const registerPlaybackAdInteraction = React.useCallback(() => {
     playbackInteractions.current += 1;
     if (playbackInteractions.current % 3 === 0) openAdsterraDirectLink();
+  }, []);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  useEffect(() => {
+    serverRef.current = server;
+  }, [server]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsPlayerFullscreen(document.fullscreenElement === playerRef.current);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
   const persistActivePlayback = React.useCallback(() => {
@@ -221,18 +248,18 @@ export default function MovieDetailPage() {
       .then((data) => {
         if (reqId !== healthReqId.current || !data?.servers) return;
         setServerHealth(data.servers);
-        if (data.servers[server] === 'down') {
+        if (data.servers[serverRef.current] === 'down') {
           const firstUp = VIDEO_SERVERS.find((item) => data.servers[item.id] === 'up');
           if (firstUp) {
             setServer(firstUp.id);
-            if (isPlaying) loadVideoSource(firstUp.id, lang);
+            if (isPlayingRef.current) loadVideoSource(firstUp.id, lang);
           }
         }
       })
       .catch(() => {
         if (reqId === healthReqId.current) setServerHealth({});
       });
-  }, [movie, selectedSeason, selectedEpisode, isPlaying, server, lang, loadVideoSource]);
+  }, [movie, selectedSeason, selectedEpisode, lang, loadVideoSource]);
 
   useEffect(() => {
     // The request updates health state when the external probe resolves.
@@ -248,8 +275,12 @@ export default function MovieDetailPage() {
     Object.values(serverHealth).every((status) => status === 'down');
 
   const handlePlay = (seasonNumber: number = selectedSeason, episodeNumber: number = selectedEpisode) => {
+    const firstAvailableServer = VIDEO_SERVERS.find((item) => serverHealth[item.id] === 'up');
+    const serverToUse = serverHealth[server] === 'down' && firstAvailableServer ? firstAvailableServer.id : server;
+
+    if (serverToUse !== server) setServer(serverToUse);
     setIsPlaying(true);
-    loadVideoSource(server, lang, seasonNumber, episodeNumber);
+    loadVideoSource(serverToUse, lang, seasonNumber, episodeNumber);
   };
 
   const handleServerChange = (newServer: string) => {
@@ -273,7 +304,23 @@ export default function MovieDetailPage() {
     setIsPlaying(false);
     setEmbedUrl('');
     setShowUpNext(false);
+    setShowPlayerControls(false);
     clearActivePlayback();
+  };
+
+  const togglePlayerFullscreen = async () => {
+    const player = playerRef.current;
+    if (!player) return;
+
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await player.requestFullscreen();
+      }
+    } catch (fullscreenError) {
+      console.warn('Player fullscreen unavailable:', fullscreenError);
+    }
   };
 
   const handleLeaveToDiscovery = () => {
@@ -331,7 +378,7 @@ export default function MovieDetailPage() {
       <div className="nebula-glow nebula-glow-violet" />
       <div className="nebula-glow nebula-glow-cyan" />
 
-      <header className="nebula-nav">
+      <header className={cn('nebula-nav', isNavScrolled && 'is-scrolled')}>
         <button type="button" className="nebula-back" onClick={handleLeaveToDiscovery}>
           <ArrowLeft size={17} />
           <span>Back to discovery</span>
@@ -347,7 +394,7 @@ export default function MovieDetailPage() {
 
       <main className="detail-shell">
         <section className="detail-player-column">
-          <div className="nebula-player">
+          <div className="nebula-player" ref={playerRef}>
             <div className={cn('player-chrome', isPlaying && 'player-chrome-live')}>
               <span className="player-state">
                 <span className={cn('player-state-dot', isPlaying ? 'is-live' : 'is-ready')} />
@@ -411,6 +458,52 @@ export default function MovieDetailPage() {
                 <button type="button" className="player-close" onClick={handleClosePlayer} aria-label="Close player">
                   <X size={18} />
                 </button>
+                <div className="player-control-bar">
+                  <button
+                    type="button"
+                    className={cn('player-control-button', showPlayerControls && 'is-active')}
+                    onClick={() => setShowPlayerControls((visible) => !visible)}
+                    aria-expanded={showPlayerControls}
+                  >
+                    <Gauge size={16} /> Controls
+                  </button>
+                  <button type="button" className="player-control-button" onClick={togglePlayerFullscreen}>
+                    {isPlayerFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                    {isPlayerFullscreen ? 'Exit' : 'Full screen'}
+                  </button>
+                </div>
+                <AnimatePresence>
+                  {showPlayerControls && (
+                    <motion.div
+                      className="player-control-panel"
+                      initial={{ opacity: 0, y: 10, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.97 }}
+                    >
+                      <div className="player-control-panel-heading">
+                        <span>Player controls</span>
+                        <small>Unified shell</small>
+                      </div>
+                      <div className="player-control-row">
+                        <span><MonitorPlay size={15} /> Quality</span>
+                        <strong>Auto</strong>
+                      </div>
+                      <div className="player-control-row">
+                        <span><Gauge size={15} /> Speed</span>
+                        <strong>1×</strong>
+                      </div>
+                      <p className="player-control-note">Quality and speed are controlled by the embedded source.</p>
+                      <div className="player-control-actions">
+                        <button type="button" onClick={() => loadVideoSource(server, lang)}>
+                          <RotateCw size={14} /> Refresh source
+                        </button>
+                        <button type="button" onClick={() => document.getElementById('playback-sources')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+                          <MonitorPlay size={14} /> Choose source
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </>
             ) : (
               <div className="player-idle">
@@ -472,7 +565,7 @@ export default function MovieDetailPage() {
 
           <div className="player-tip">
             <Sparkles size={14} />
-            <span>We check the available sources before you press play.</span>
+            <span>{isCheckingHealth ? 'Checking source reachability…' : 'Sources are checked before playback; switch source if needed.'}</span>
           </div>
         </section>
 
@@ -524,7 +617,7 @@ export default function MovieDetailPage() {
             <div><span>Format</span><strong>1080p</strong></div>
           </div>
 
-          <section className="control-card source-card">
+          <section id="playback-sources" className="control-card source-card">
             <div className="control-card-heading">
               <div><span className="detail-eyebrow">Playback</span><h2>Choose a source</h2></div>
               <MonitorPlay size={20} />

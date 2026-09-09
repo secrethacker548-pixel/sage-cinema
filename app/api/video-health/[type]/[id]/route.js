@@ -87,29 +87,26 @@ async function probe(url, serverId, type, id, season, episode) {
     const text = await res.text();
     const lower = text.toLowerCase();
 
-    // Catch catalog missing signatures inside 200 OK provider shells
-    if (
-      lower.includes("couldn't find") ||
-      lower.includes('couldnt find') ||
-      lower.includes('could not find') ||
-      lower.includes('cannot find') ||
-      lower.includes('searched through our providers') ||
-      lower.includes('not host the media') ||
-      lower.includes('content unavailable') ||
-      lower.includes('content not found') ||
-      lower.includes('video not found') ||
-      lower.includes('something went wrong') ||
-      lower.includes('file not found') ||
-      lower.includes('media not found') ||
-      lower.includes('not available') ||
-      lower.includes('2embed - stream movies') ||
-      lower.includes('not found') ||
-      lower.includes('404') ||
-      lower.includes('error-code') ||
-      lower.includes('/lander') ||
-      lower.includes('location.href="/lander"') ||
-      lower.includes('window.location.href="/lander"')
-    ) {
+    // Provider shells often contain generic dictionary text such as
+    // "download_not_available", "couldn't find", or "404" in JavaScript.
+    // Only match explicit playback/catalog failure messages here so a valid
+    // source is not incorrectly reported as down.
+    const explicitUnavailableMarkers = [
+      'content unavailable for this title',
+      'content not found for this title',
+      'video not found for this title',
+      'stream not found for this title',
+      'no sources found for this title',
+      'movie does not exist',
+      'show does not exist',
+      'searched through our providers',
+      'not host the media',
+      '2embed - stream movies',
+      'location.href="/lander"',
+      'window.location.href="/lander"',
+    ];
+
+    if (explicitUnavailableMarkers.some((marker) => lower.includes(marker)) || lower.includes('/lander')) {
       return 'down';
     }
 
