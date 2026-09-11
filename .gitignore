@@ -11,6 +11,10 @@ node_modules
 /out/
 build
 
+# vinext / Cloudflare build output
+/.vinext/
+/dist/
+
 # misc
 .DS_Store
 *.pem
