@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     download_url: apkUrl,
     direct_apk_url: apkUrl,
     release_notes:
-      '• Upgraded to Gradle 8.14, AGP 8.11.1, and Kotlin 2.2.20\n• Updated webview_flutter_wkwebview to 3.26.0\n• Fixed broken APK download link & updated dependencies',
+      '• Android APK download is paused until a release URL is configured\n• Web site playback and Adsterra placements remain active',
     force_update: false,
   });
 }
