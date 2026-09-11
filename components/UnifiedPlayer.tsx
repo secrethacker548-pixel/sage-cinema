@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Captions, Gauge, Maximize2, Minimize2, MonitorPlay, Pause, Play, RotateCw, Search, Settings2, X } from 'lucide-react';
 import type Hls from 'hls.js';
-import type { UnifiedSource, UnifiedSubtitle } from '../lib/unifiedSources';
+import type { UnifiedSource, UnifiedSubtitle } from '../lib/unifiedTypes';
 import { readWatchProgress, saveWatchProgress } from '../lib/watchProgress';
 
 interface UnifiedPlayerProps {

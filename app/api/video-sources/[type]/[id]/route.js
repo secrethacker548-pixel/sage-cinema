@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getServer, DEFAULT_LANG, SUBTITLE_LANGUAGES } from '../../../../../lib/videoServers';
 import {
-  DEFAULT_UNIFIED_RESOLVER,
   resolveUnifiedSources,
-  UNIFIED_RESOLVERS,
 } from '../../../../../lib/unifiedSources';
+import { DEFAULT_UNIFIED_RESOLVER, UNIFIED_RESOLVERS } from '../../../../../lib/unifiedResolvers';
 
 export async function GET(request, { params }) {
   const resolvedParams = await params;

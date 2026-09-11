@@ -35,8 +35,8 @@ import { searchOnlineCaptions } from '../../../../lib/captionSearch';
 import {
   DEFAULT_UNIFIED_RESOLVER,
   UNIFIED_RESOLVERS,
-} from '../../../../lib/unifiedSources';
-import type { UnifiedSource, UnifiedSubtitle } from '../../../../lib/unifiedSources';
+} from '../../../../lib/unifiedResolvers';
+import type { UnifiedSource, UnifiedSubtitle } from '../../../../lib/unifiedTypes';
 import {
   DEFAULT_LANG,
   SUBTITLE_LANGUAGES,

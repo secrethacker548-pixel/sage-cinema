@@ -1,4 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import type { UnifiedSource, UnifiedSubtitle } from './unifiedTypes';
+import { UNIFIED_RESOLVERS } from './unifiedResolvers';
 
 const SPEEDRACELIGHT_API = 'https://api.speedracelight.com';
 const PROXY_EXPIRY_MS = 30 * 60 * 1000;
@@ -11,22 +13,6 @@ const HASH_SEEDS = [
   1925078388, 2162078206, 2614888103, 3248222580,
 ];
 
-export interface UnifiedSource {
-  id: string;
-  label: string;
-  quality: string;
-  type: 'hls' | 'mp4' | 'dash' | 'unknown';
-  playbackUrl: string;
-  provider: string;
-}
-
-export interface UnifiedSubtitle {
-  id: string;
-  lang: string;
-  language: string;
-  url: string;
-}
-
 export interface ResolveSourceOptions {
   type: 'movie' | 'tv';
   id: string;
@@ -37,15 +23,6 @@ export interface ResolveSourceOptions {
   episode?: number;
   resolverId?: string;
 }
-
-export const UNIFIED_RESOLVERS = [
-  { id: 'cdn', path: '/cdn/sources-with-title', label: 'CDN pool' },
-  { id: 'vsrc', path: '/vsrc/sources-with-title', label: 'Stream pool' },
-  { id: 'm4uhd', path: '/m4uhd/sources-with-title', label: 'HD pool' },
-  { id: 'superflix', path: '/superflix/sources-with-title', label: 'Backup pool' },
-];
-
-export const DEFAULT_UNIFIED_RESOLVER = UNIFIED_RESOLVERS[0].id;
 
 function mix(value: number) {
   value >>>= 0;

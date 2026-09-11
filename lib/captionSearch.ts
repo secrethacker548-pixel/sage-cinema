@@ -1,5 +1,5 @@
 import type { TMDBMovie } from '../types/tmdb';
-import type { UnifiedSubtitle } from './unifiedSources';
+import type { UnifiedSubtitle } from './unifiedTypes';
 
 interface CaptionSearchOptions {
   movie: TMDBMovie;
