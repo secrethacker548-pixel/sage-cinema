@@ -48,10 +48,11 @@ export default function DownloadAppModal({ isOpen, onClose }: DownloadAppModalPr
   const [countdown, setCountdown] = useState(5);
   const [hasStartedDownload, setHasStartedDownload] = useState(false);
   const [isPreparingDownload, setIsPreparingDownload] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [showcaseMovie, setShowcaseMovie] = useState(FEATURED_SHOWCASE_MOVIES[0]);
 
   const defaultDownloadUrl =
-    process.env.NEXT_PUBLIC_ANDROID_APK_URL || '/sagemovies-latest.apk';
+    process.env.NEXT_PUBLIC_ANDROID_APK_URL || null;
   const [downloadUrl, setDownloadUrl] = useState(defaultDownloadUrl);
 
   useEffect(() => {
@@ -67,35 +68,42 @@ export default function DownloadAppModal({ isOpen, onClose }: DownloadAppModalPr
   }, [isOpen]);
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (isCountingDown && !hasStartedDownload) {
-      timer = setTimeout(() => {
-        if (countdown <= 1) {
-          setHasStartedDownload(true);
-          markAppDownloaded();
-          window.location.href = downloadUrl;
-        } else {
-          setCountdown((prev) => prev - 1);
-        }
-      }, 1000);
-    }
+    if (!isCountingDown || hasStartedDownload || !downloadUrl) return;
+    const targetUrl = downloadUrl;
+    const timer = setTimeout(() => {
+      if (countdown <= 1) {
+        setHasStartedDownload(true);
+        markAppDownloaded();
+        window.location.href = targetUrl;
+      } else {
+        setCountdown((prev) => prev - 1);
+      }
+    }, 1000);
     return () => clearTimeout(timer);
   }, [isCountingDown, countdown, hasStartedDownload, downloadUrl, markAppDownloaded]);
 
   const handleStartDownloadFlow = async () => {
     if (isPreparingDownload) return;
     setIsPreparingDownload(true);
+    setDownloadError(null);
+    let nextDownloadUrl = downloadUrl;
     try {
       const response = await fetch('/api/app-version', { cache: 'no-store' });
       if (response.ok) {
         const data = await response.json();
         if (typeof data.download_url === 'string' && data.download_url) {
-          setDownloadUrl(data.download_url);
+          nextDownloadUrl = data.download_url;
         }
       }
     } catch {
       // The build-time URL remains available as a fallback.
     }
+    if (!nextDownloadUrl) {
+      setDownloadError('The Android app download is temporarily unavailable.');
+      setIsPreparingDownload(false);
+      return;
+    }
+    setDownloadUrl(nextDownloadUrl);
     markAppDownloaded();
     setIsCountingDown(true);
     setCountdown(5);
@@ -108,6 +116,7 @@ export default function DownloadAppModal({ isOpen, onClose }: DownloadAppModalPr
     setCountdown(5);
     setHasStartedDownload(false);
     setIsPreparingDownload(false);
+    setDownloadError(null);
     onClose();
   };
 
@@ -201,6 +210,7 @@ export default function DownloadAppModal({ isOpen, onClose }: DownloadAppModalPr
                 <Download className="w-4 h-4 stroke-[3]" />
                 <span>{isPreparingDownload ? 'PREPARING DOWNLOAD…' : 'DOWNLOAD ANDROID APK'}</span>
               </button>
+              {downloadError && <p className="mt-3 text-center text-xs font-bold text-[#FF3366]">{downloadError}</p>}
             </>
           ) : (
             <div className="py-8 flex flex-col items-center justify-center text-center">

@@ -3,6 +3,7 @@
 import React from 'react';
 import { useCookieConsent } from '../lib/cookieConsent';
 import { useAppContext } from '../lib/context/AppContext';
+import { ADSTERRA_ENABLED } from './Adsterra';
 
 interface AdsterraBannerProps {
   className?: string;
@@ -22,7 +23,7 @@ export default function AdsterraBanner({ className = '' }: AdsterraBannerProps) 
   })();
   const isDownloaded = hasDownloadedApp || storedDownload;
 
-  if (isDownloaded || consent?.advertising !== true) return null;
+  if (!ADSTERRA_ENABLED || isDownloaded || consent?.advertising !== true) return null;
   const iframeHtml = `
     <!DOCTYPE html>
     <html>

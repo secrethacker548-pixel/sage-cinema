@@ -22,7 +22,7 @@ import { useAppContext } from '../lib/context/AppContext';
  * Gated on NEXT_PUBLIC_ADSTERRA_ENABLED, advertising consent, and user's app download status.
  */
 
-const ENABLED = process.env.NEXT_PUBLIC_ADSTERRA_ENABLED === 'true';
+export const ADSTERRA_ENABLED = process.env.NEXT_PUBLIC_ADSTERRA_ENABLED === 'true';
 
 // Adsterra "Direct Link" (a.k.a. smartlink) — a plain URL that renders an ad/offer when
 // opened. Copy it from the dashboard (same as the other units, it can't be guessed) and
@@ -49,7 +49,7 @@ function isAppDownloaded(): boolean {
  * No-op (returns false) when ads are disabled, app is downloaded, or no link is configured.
  */
 export function openAdsterraDirectLink(): boolean {
-  if (!ENABLED || !DIRECT_LINK || !hasCookieConsent('advertising') || isAppDownloaded()) return false;
+  if (!ADSTERRA_ENABLED || !DIRECT_LINK || !hasCookieConsent('advertising') || isAppDownloaded()) return false;
   try {
     window.open(DIRECT_LINK, '_blank', 'noopener,noreferrer');
     return true;
@@ -64,9 +64,6 @@ const SOCIAL_BAR_SRC =
 const NATIVE_BANNER_SRC =
   'https://pl30470198.effectivecpmnetwork.com/7abdf4c8f0cb2b40ae9d9f5fece86bd7/invoke.js';
 const NATIVE_BANNER_CONTAINER_ID = 'container-7abdf4c8f0cb2b40ae9d9f5fece86bd7';
-
-const GLOBAL_LAYOUT_AD_SRC =
-  'https://regaincocoa.com/0b/05/3c/0b053ca6d8fa77c3cd61797ebae4b7bb.js';
 
 /** Append a vendor script once, and remove it on unmount. */
 function useAdScript(src: string, enabled: boolean, parent?: React.RefObject<HTMLElement | null>) {
@@ -90,18 +87,9 @@ function useAdScript(src: string, enabled: boolean, parent?: React.RefObject<HTM
 export function AdsterraSocialBar() {
   const { hasDownloadedApp } = useAppContext();
   const consent = useCookieConsent();
-  const active = ENABLED && consent?.advertising === true && !hasDownloadedApp && !isAppDownloaded();
+  const active = ADSTERRA_ENABLED && consent?.advertising === true && !hasDownloadedApp && !isAppDownloaded();
 
   useAdScript(SOCIAL_BAR_SRC, active);
-  return null;
-}
-
-export function AdsterraGlobalScript() {
-  const { hasDownloadedApp } = useAppContext();
-  const consent = useCookieConsent();
-  const active = ENABLED && consent?.advertising === true && !hasDownloadedApp && !isAppDownloaded();
-
-  useAdScript(GLOBAL_LAYOUT_AD_SRC, active);
   return null;
 }
 
@@ -113,7 +101,7 @@ export function AdsterraGlobalScript() {
 export function AdsterraNativeBanner({ className = 'px-4 md:px-12 my-6' }: { className?: string }) {
   const { hasDownloadedApp } = useAppContext();
   const consent = useCookieConsent();
-  const active = ENABLED && consent?.advertising === true && !hasDownloadedApp && !isAppDownloaded();
+  const active = ADSTERRA_ENABLED && consent?.advertising === true && !hasDownloadedApp && !isAppDownloaded();
   const hostRef = useRef<HTMLDivElement>(null);
 
   useAdScript(NATIVE_BANNER_SRC, active, hostRef);

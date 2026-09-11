@@ -32,6 +32,7 @@ import MiniPlayer from '../components/MiniPlayer';
 import MovieDetailModal from '../components/MovieDetailModal';
 import { CookieSettingsButton } from '../components/CookieConsent';
 import SageLoader from '../components/SageLoader';
+import { AdsterraNativeBanner } from '../components/Adsterra';
 import { clearActivePlayback, readActivePlayback, type ActivePlayback } from '../lib/activePlayback';
 import { EMPTY_SITE_STATS, recordMovieView, recordSiteVisit, type SiteStats } from '../lib/siteStats';
 import { readAllWatchProgress, type WatchProgressMap } from '../lib/watchProgress';
@@ -632,6 +633,7 @@ export default function Home() {
             {history.length > 0 && <Section id="continue" eyebrow="Your orbit" title="Continue watching" note="Pick up where you left off" items={history} onSelect={openMovie} viewCounts={siteStats.movieViews} progressMap={watchProgress} />}
             <Section id="films" eyebrow="The main feature" title="Trending now" note="Most watched in the catalog" items={collections.trending} onSelect={openMovie} viewCounts={siteStats.movieViews} progressMap={watchProgress} />
             <Section id="latest" eyebrow="Fresh arrivals" title="New on the reel" note="Just added to the signal" items={collections.latest} onSelect={openMovie} viewCounts={siteStats.movieViews} progressMap={watchProgress} />
+            <AdsterraNativeBanner className="home-ad-slot" />
             <Section id="series" eyebrow="Long-form worlds" title="Series to disappear into" note="One more episode" items={collections.tv} onSelect={openMovie} viewCounts={siteStats.movieViews} progressMap={watchProgress} />
             <Section id="action" eyebrow="High velocity" title="Turn up the voltage" note="Action, adventure, adrenaline" items={collections.action} onSelect={openMovie} viewCounts={siteStats.movieViews} progressMap={watchProgress} />
             <Section id="top-rated" eyebrow="The inner circle" title="Critics' orbit" note="Highest rated right now" items={collections.topRated} onSelect={openMovie} viewCounts={siteStats.movieViews} progressMap={watchProgress} />
