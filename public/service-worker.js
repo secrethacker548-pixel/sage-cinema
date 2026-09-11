@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sage-cinema-shell-v1';
+const CACHE_NAME = 'sage-cinema-shell-v2';
 const APP_SHELL = ['/', '/manifest.json', '/icon.svg'];
 
 self.addEventListener('install', (event) => {
@@ -23,6 +23,11 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+
+  // API, media, subtitle, analytics, and health responses are dynamic. Let the
+  // browser/client fetch them directly so route cache headers such as no-store
+  // are respected and signed playback URLs cannot become stale shell entries.
+  if (url.pathname.startsWith('/api/')) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(

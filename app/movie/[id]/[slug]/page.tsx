@@ -32,18 +32,19 @@ import { AdsterraNativeBanner, openAdsterraDirectLink } from '../../../../compon
 import UnifiedPlayer from '../../../../components/UnifiedPlayer';
 import SageLoader from '../../../../components/SageLoader';
 import { searchOnlineCaptions } from '../../../../lib/captionSearch';
+import {
+  DEFAULT_UNIFIED_RESOLVER,
+  UNIFIED_RESOLVERS,
+} from '../../../../lib/unifiedSources';
 import type { UnifiedSource, UnifiedSubtitle } from '../../../../lib/unifiedSources';
 import {
   DEFAULT_LANG,
-  DEFAULT_SERVER,
-  getServer,
   SUBTITLE_LANGUAGES,
-  VIDEO_SERVERS,
 } from '../../../../lib/videoServers';
 
 const IMG_URL = 'https://image.tmdb.org/t/p/original';
 const THUMB_URL = 'https://image.tmdb.org/t/p/w500';
-const SOURCE_SERVER_OPTIONS = VIDEO_SERVERS.slice(0, 2);
+const SOURCE_SERVER_OPTIONS = UNIFIED_RESOLVERS;
 
 export default function MovieDetailPage() {
   const params = useParams();
@@ -55,7 +56,7 @@ export default function MovieDetailPage() {
   const { isWatched, markWatched, toggleWatched } = useWatchedEpisodes();
 
   const [movie, setMovie] = useState<TMDBMovie | any>(null);
-  const [server, setServer] = useState(DEFAULT_SERVER);
+  const [server, setServer] = useState(DEFAULT_UNIFIED_RESOLVER);
   const [lang, setLang] = useState(DEFAULT_LANG);
   const [embedUrl, setEmbedUrl] = useState('');
   const [playbackSources, setPlaybackSources] = useState<UnifiedSource[]>([]);
@@ -69,25 +70,17 @@ export default function MovieDetailPage() {
   const [similarMovies, setSimilarMovies] = useState<TMDBMovie[]>([]);
   const [showUpNext, setShowUpNext] = useState(false);
 
-  type ServerStatus = 'up' | 'down' | 'checking';
-  const [serverHealth, setServerHealth] = useState<Record<string, ServerStatus>>({});
-  const healthReqId = React.useRef(0);
   const playbackInteractions = React.useRef(0);
-  const isPlayingRef = React.useRef(false);
-  const serverRef = React.useRef(DEFAULT_SERVER);
+  const sourceRequestRef = React.useRef<AbortController | null>(null);
   const isNavScrolled = useScroll(16);
   const registerPlaybackAdInteraction = React.useCallback(() => {
     playbackInteractions.current += 1;
     if (playbackInteractions.current % 3 === 0) openAdsterraDirectLink();
   }, []);
 
-  useEffect(() => {
-    isPlayingRef.current = isPlaying;
-  }, [isPlaying]);
-
-  useEffect(() => {
-    serverRef.current = server;
-  }, [server]);
+  useEffect(() => () => {
+    sourceRequestRef.current?.abort();
+  }, []);
 
   const persistActivePlayback = React.useCallback(() => {
     if (!movie || !isPlaying || (!embedUrl && playbackSources.length === 0)) return;
@@ -109,10 +102,21 @@ export default function MovieDetailPage() {
   }, [persistActivePlayback]);
 
   useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+
+    const fetchJson = async (url: string) => {
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
+      return response.json();
+    };
+
     const fetchMovieDetails = async () => {
       try {
-        const mediaType = slug?.includes('tv') ? 'tv' : 'movie';
+        const mediaType = slug === 'tv' || slug?.startsWith('tv-') ? 'tv' : 'movie';
         const data = await getMovieDetails<any>(id, mediaType);
+
+        if (!active) return;
 
         if (!data) {
           setError('Movie not found');
@@ -138,14 +142,16 @@ export default function MovieDetailPage() {
 
         try {
           const [generalRes, genreRes, studioRes] = await Promise.all([
-            fetch(endpoint).then((response) => response.json()),
+            fetchJson(endpoint),
             currentGenre
-              ? fetch(`/api/movies/genre/${currentGenre}?type=${collectionType}`).then((response) => response.json())
+              ? fetchJson(`/api/movies/genre/${currentGenre}?type=${collectionType}`)
               : Promise.resolve({ results: [] }),
             studioId
-              ? fetch(`/api/movies/studio/${studioId}?type=${collectionType}`).then((response) => response.json())
+              ? fetchJson(`/api/movies/studio/${studioId}?type=${collectionType}`)
               : Promise.resolve({ results: [] }),
           ]);
+
+          if (!active) return;
 
           const normalizedStudioResults = (studioRes.results || []).map((item: any) => ({
             ...item,
@@ -159,21 +165,31 @@ export default function MovieDetailPage() {
             ...(generalRes.results || []),
           ];
           const uniquePool = Array.from(
-            new Map(combinedResults.map((item) => [item.id, item])).values()
+            new Map(
+              combinedResults.map((item) => [`${item.media_type || collectionType}:${item.id}`, item])
+            ).values()
           );
           setSimilarMovies(getSimilarMovies(normalizedMovie, uniquePool, 12));
         } catch (poolError) {
-          console.error('Pool fetch error:', poolError);
+          if (active && !(poolError instanceof DOMException && poolError.name === 'AbortError')) {
+            console.error('Pool fetch error:', poolError);
+          }
         }
       } catch (fetchError) {
-        console.error('Movie detail error:', fetchError);
-        setError('Failed to load movie details');
+        if (active && !(fetchError instanceof DOMException && fetchError.name === 'AbortError')) {
+          console.error('Movie detail error:', fetchError);
+          setError('Failed to load movie details');
+        }
       } finally {
-        setIsLoading(false);
+        if (active) setIsLoading(false);
       }
     };
 
     if (id) fetchMovieDetails();
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [id, slug]);
 
   useEffect(() => {
@@ -186,7 +202,7 @@ export default function MovieDetailPage() {
     setServer(
       SOURCE_SERVER_OPTIONS.some((item) => item.id === storedPlayback.server)
         ? storedPlayback.server
-        : DEFAULT_SERVER
+        : DEFAULT_UNIFIED_RESOLVER
     );
     setLang(storedPlayback.lang || DEFAULT_LANG);
     setSelectedSeason(storedPlayback.season || 1);
@@ -204,6 +220,9 @@ export default function MovieDetailPage() {
     episodeNumber: number = selectedEpisode
   ) => {
     if (!movie) return;
+    sourceRequestRef.current?.abort();
+    const controller = new AbortController();
+    sourceRequestRef.current = controller;
     setIsLoading(true);
     setError(null);
 
@@ -212,12 +231,14 @@ export default function MovieDetailPage() {
       const title = movie.title || movie.name || '';
       const year = (movie.release_date || movie.first_air_date || '').slice(0, 4);
       const response = await fetch(
-        `/api/video-sources/${type}/${movie.id}?player=unified&server=${selectedServer}&lang=${selectedLang}&season=${seasonNumber}&episode=${episodeNumber}&title=${encodeURIComponent(title)}&year=${year}&totalSeasons=${movie.number_of_seasons || ''}`
+        `/api/video-sources/${type}/${movie.id}?player=unified&server=${selectedServer}&lang=${selectedLang}&season=${seasonNumber}&episode=${episodeNumber}&title=${encodeURIComponent(title)}&year=${year}&totalSeasons=${movie.number_of_seasons || ''}`,
+        { signal: controller.signal }
       );
       if (!response.ok) throw new Error('Failed to fetch video source');
       const data = await response.json();
+      if (controller.signal.aborted) return;
 
-      if (data.player !== 'unified' || !data.sources?.length) {
+      if (data.player !== 'unified' || !Array.isArray(data.sources) || data.sources.length === 0) {
         setPlaybackSources([]);
         setPlaybackSubtitles([]);
         setEmbedUrl('');
@@ -232,52 +253,17 @@ export default function MovieDetailPage() {
       addToHistory(movie);
       if (type === 'tv') markWatched(movie.id, seasonNumber, episodeNumber);
     } catch (loadError) {
+      if (controller.signal.aborted) return;
       console.error('Video source error:', loadError);
       setError('Failed to load video. Please try a different server.');
       if (!isPlaying) setIsPlaying(false);
     } finally {
-      setIsLoading(false);
+      if (sourceRequestRef.current === controller) {
+        sourceRequestRef.current = null;
+        setIsLoading(false);
+      }
     }
   }, [movie, lang, selectedSeason, selectedEpisode, isPlaying, addToHistory, markWatched]);
-
-  const runHealthCheck = React.useCallback(() => {
-    if (!movie) return;
-    const type = movie.first_air_date ? 'tv' : 'movie';
-    const reqId = ++healthReqId.current;
-
-    setServerHealth(Object.fromEntries(SOURCE_SERVER_OPTIONS.map((item) => [item.id, 'checking'])));
-    fetch(
-      `/api/video-health/${type}/${movie.id}?season=${selectedSeason}&episode=${selectedEpisode}`
-    )
-      .then((response) => response.json())
-      .then((data) => {
-        if (reqId !== healthReqId.current || !data?.servers) return;
-        const scopedHealth = Object.fromEntries(
-          SOURCE_SERVER_OPTIONS.map((item) => [item.id, data.servers[item.id] === 'up' ? 'up' : 'down'])
-        ) as Record<string, ServerStatus>;
-        setServerHealth(scopedHealth);
-        if (scopedHealth[serverRef.current] === 'down') {
-          const firstUp = SOURCE_SERVER_OPTIONS.find((item) => scopedHealth[item.id] === 'up');
-          if (firstUp) {
-            setServer(firstUp.id);
-            if (isPlayingRef.current) loadVideoSource(firstUp.id, lang);
-          }
-        }
-      })
-      .catch(() => {
-        if (reqId === healthReqId.current) setServerHealth({});
-      });
-  }, [movie, selectedSeason, selectedEpisode, lang, loadVideoSource]);
-
-  useEffect(() => {
-    // The request updates health state when the external probe resolves.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    runHealthCheck();
-    // The health probe is intentionally keyed to the loaded title.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [movie?.id]);
-
-  const isCheckingHealth = Object.values(serverHealth).some((status) => status === 'checking');
 
   const handlePlay = (seasonNumber: number = selectedSeason, episodeNumber: number = selectedEpisode) => {
     setIsPlaying(true);
@@ -285,7 +271,7 @@ export default function MovieDetailPage() {
   };
 
   const handleServerChange = (newServer: string) => {
-    if (!SOURCE_SERVER_OPTIONS.some((item) => item.id === newServer) || serverHealth[newServer] === 'down') return;
+    if (!SOURCE_SERVER_OPTIONS.some((item) => item.id === newServer)) return;
     setServer(newServer);
     if (isPlaying) loadVideoSource(newServer, lang);
   };
@@ -296,6 +282,7 @@ export default function MovieDetailPage() {
   };
 
   const handleClosePlayer = () => {
+    sourceRequestRef.current?.abort();
     setIsPlaying(false);
     setEmbedUrl('');
     setPlaybackSources([]);
@@ -458,31 +445,29 @@ export default function MovieDetailPage() {
 
           <section id="playback-sources" className="source-card-under-player" aria-label="Servers">
             <div className="source-pill-list">
-              {SOURCE_SERVER_OPTIONS.filter((item) => serverHealth[item.id] !== 'down').map((item) => {
-                const index = SOURCE_SERVER_OPTIONS.findIndex((option) => option.id === item.id);
-                const status = serverHealth[item.id];
+              {SOURCE_SERVER_OPTIONS.map((item) => {
                 const selected = server === item.id;
                 return (
                   <button
                     type="button"
                     key={item.id}
-                    className={cn('source-pill', selected && 'is-selected', status === 'checking' && 'is-checking')}
+                    className={cn('source-pill', selected && 'is-selected')}
                     onClick={() => {
                       registerPlaybackAdInteraction();
                       handleServerChange(item.id);
                     }}
                   >
-                    <strong>Server {index + 1}</strong>
+                    <strong>{item.label}</strong>
                   </button>
                 );
               })}
               <button
                 type="button"
                 className="source-refresh-pill"
-                onClick={runHealthCheck}
-                disabled={isCheckingHealth}
-                aria-label="Re-check servers"
-                title="Re-check servers"
+                onClick={() => loadVideoSource(server, lang)}
+                disabled={isLoading}
+                aria-label="Refresh source"
+                title="Refresh source"
               >
                 <RotateCw size={14} />
               </button>
@@ -607,7 +592,7 @@ export default function MovieDetailPage() {
 
           <details className="control-card settings-card">
             <summary>
-              <span><i className={cn('settings-dot', serverHealth[server] === 'down' && 'is-down', serverHealth[server] === 'checking' && 'is-checking')} /> Stream settings</span>
+              <span><i className="settings-dot" /> Stream settings</span>
               <ChevronDown size={17} />
             </summary>
             <div className="settings-body">
@@ -617,7 +602,6 @@ export default function MovieDetailPage() {
                   id="language-select"
                   value={lang}
                   onChange={(event) => handleLangChange(event.target.value)}
-                  disabled={!getServer(server).supportsLang}
                 >
                   {SUBTITLE_LANGUAGES.map((language) => (
                     <option key={language.code} value={language.code}>{language.label}</option>

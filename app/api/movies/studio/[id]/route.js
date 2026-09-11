@@ -12,12 +12,17 @@ export async function GET(request, { params }) {
     return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
   }
 
+  if (!/^\d+$/.test(id)) {
+    return NextResponse.json({ error: 'Invalid studio id' }, { status: 400 });
+  }
+
   try {
     // Fetch titles from the same production company
     const response = await fetch(
       `https://api.themoviedb.org/3/discover/${type}?api_key=${apiKey}&with_companies=${id}&sort_by=popularity.desc&page=1`,
       { next: { revalidate: 3600 } }
     );
+    if (!response.ok) throw new Error(`TMDB returned ${response.status}`);
     const data = await response.json();
 
     if (data.results) {

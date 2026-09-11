@@ -14,6 +14,7 @@ export async function GET(request) {
     const res = await fetch(`https://api.themoviedb.org/3/movie/now_playing?api_key=${apiKey}&page=1`, {
       next: { revalidate: 3600 },
     });
+    if (!res.ok) throw new Error(`TMDB returned ${res.status}`);
     const data = await res.json();
     return NextResponse.json(data);
   } catch (error) {

@@ -37,7 +37,11 @@ export async function GET(request) {
   }
 
   try {
-    const upstream = await fetch(parsedUrl, { headers: { Accept: 'text/plain, text/vtt, */*' }, cache: 'no-store' });
+    const upstream = await fetch(parsedUrl, {
+      headers: { Accept: 'text/plain, text/vtt, */*' },
+      cache: 'no-store',
+      redirect: 'manual',
+    });
     if (!upstream.ok) return new Response('Subtitle source unavailable', { status: upstream.status });
     const content = toWebVtt(await upstream.text());
     return new Response(content, {

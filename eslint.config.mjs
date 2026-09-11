@@ -1,8 +1,10 @@
 import next from 'eslint-config-next/core-web-vitals';
 
-export default [
+const eslintConfig = [
   {
     ignores: ['.next/**', 'dist/**', 'out/**', 'node_modules/**', 'old_assets/**', 'sw.js'],
   },
   ...next,
 ];
+
+export default eslintConfig;

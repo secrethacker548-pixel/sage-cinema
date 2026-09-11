@@ -5,9 +5,14 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const page = parseInt(searchParams.get('page') || '1');
+  const page = Number(searchParams.get('page') || '1');
   const apiKey = process.env.TMDB_API_KEY;
   const results = [];
+
+  if (!apiKey) return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
+  if (!Number.isInteger(page) || page < 1 || page > 50) {
+    return NextResponse.json({ error: 'Invalid page' }, { status: 400 });
+  }
 
   try {
     // Determine which TMDB pages to fetch based on the requested 'page'
@@ -20,7 +25,10 @@ export async function GET(request) {
       popularPromises.push(
         fetch(`https://api.themoviedb.org/3/movie/popular?api_key=${apiKey}&page=${tmdbPage}`, {
           next: { revalidate: 1800 },
-        }).then((res) => res.json())
+        }).then(async (res) => {
+          if (!res.ok) throw new Error(`TMDB returned ${res.status}`);
+          return res.json();
+        })
       );
     }
 
@@ -32,7 +40,7 @@ export async function GET(request) {
       }
     });
 
-    const uniqueResults = Array.from(new Map(results.map((item) => [item.id, item])).values());
+    const uniqueResults = Array.from(new Map(results.map((item) => [`${item.media_type}:${item.id}`, item])).values());
     uniqueResults.sort((a, b) => b.popularity - a.popularity);
 
     return NextResponse.json(

@@ -11,9 +11,16 @@ interface AdsterraBannerProps {
 export default function AdsterraBanner({ className = '' }: AdsterraBannerProps) {
   const { hasDownloadedApp } = useAppContext();
   const consent = useCookieConsent();
-  const isDownloaded =
-    hasDownloadedApp ||
-    (typeof window !== 'undefined' && localStorage.getItem('sagemovies_app_downloaded') === 'true');
+  const storedDownload = (() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem('sagemovies_app_downloaded') === 'true';
+    } catch {
+      // Storage may be blocked; the context still tracks the current session.
+      return false;
+    }
+  })();
+  const isDownloaded = hasDownloadedApp || storedDownload;
 
   if (isDownloaded || consent?.advertising !== true) return null;
   const iframeHtml = `

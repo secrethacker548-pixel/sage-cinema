@@ -8,8 +8,8 @@ export async function GET(request) {
   const type = searchParams.get('type') || 'movie';
   const id = searchParams.get('id');
 
-  if (!id) {
-    return NextResponse.json({ error: 'ID parameter required' }, { status: 400 });
+  if (!id || !/^\d+$/.test(id) || !['movie', 'tv'].includes(type)) {
+    return NextResponse.json({ error: 'Valid type and numeric id are required' }, { status: 400 });
   }
 
   const checks = await Promise.allSettled(
@@ -24,13 +24,13 @@ export async function GET(request) {
           headers: { 'User-Agent': 'Mozilla/5.0' },
           signal: controller.signal,
         });
-        clearTimeout(timeout);
-
         // Status 200, 301, 302, 308 indicate server is up
         const isWorking = res.status >= 200 && res.status < 400;
         return { id: server.id, isWorking };
       } catch (err) {
         return { id: server.id, isWorking: false };
+      } finally {
+        clearTimeout(timeout);
       }
     })
   );

@@ -22,6 +22,10 @@ function emptyStats(): PersistentSiteStats {
   return { totalVisits: 0, movieViews: {} };
 }
 
+function canUseLocalFallback() {
+  return process.env.NODE_ENV !== 'production' && !process.env.VERCEL_ENV;
+}
+
 function normalizeStats(value: unknown): PersistentSiteStats {
   if (!value || typeof value !== 'object') return emptyStats();
   const data = value as Partial<PersistentSiteStats>;
@@ -43,9 +47,7 @@ function getRedis() {
   const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
   if (!url || !token) {
-    if (process.env.VERCEL === '1' || process.env.VERCEL_ENV) {
-      throw new Error('Upstash Redis analytics is not configured for Vercel');
-    }
+    if (!canUseLocalFallback()) throw new Error('Upstash Redis analytics is not configured');
     redisClient = null;
     return redisClient;
   }
@@ -114,6 +116,7 @@ export async function getPersistentStats() {
     try {
       return await readRedisStats(redis);
     } catch (error) {
+      if (!canUseLocalFallback()) throw error;
       noteRedisFallback('Upstash Redis analytics read failed', error);
     }
   }
@@ -128,6 +131,7 @@ export async function recordAnalyticsEvent(event: AnalyticsEvent) {
       await redis.hincrby(REDIS_STATS_KEY, field, 1);
       return await readRedisStats(redis);
     } catch (error) {
+      if (!canUseLocalFallback()) throw error;
       noteRedisFallback('Upstash Redis analytics write failed', error);
     }
   }

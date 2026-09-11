@@ -33,6 +33,7 @@ yarn-error.log*
 
 # Local app artifacts
 public/*.apk
+!public/sagemovies-latest.apk
 public/downloads/
 
 # Local Netlify folder

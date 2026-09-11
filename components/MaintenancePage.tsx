@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Wrench, RefreshCw, Download, ShieldCheck, Server, Radio, ArrowRight, AlertOctagon, Check } from 'lucide-react';
 import DownloadAppModal from './DownloadAppModal';
 
@@ -10,21 +10,7 @@ export default function MaintenancePage() {
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [autoCheckCountdown, setAutoCheckCountdown] = useState(30);
 
-  useEffect(() => {
-    setLastChecked(new Date().toLocaleTimeString());
-    const interval = setInterval(() => {
-      setAutoCheckCountdown((prev) => {
-        if (prev <= 1) {
-          handleCheckStatus();
-          return 30;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleCheckStatus = async () => {
+  const handleCheckStatus = useCallback(async () => {
     setIsChecking(true);
     try {
       const res = await fetch('/api/app-version', { cache: 'no-store' });
@@ -38,7 +24,20 @@ export default function MaintenancePage() {
       setLastChecked(new Date().toLocaleTimeString());
       setAutoCheckCountdown(30);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAutoCheckCountdown((prev) => {
+        if (prev <= 1) {
+          handleCheckStatus();
+          return 30;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [handleCheckStatus]);
 
   return (
     <div className="min-h-screen bg-[#FFE600] text-black flex flex-col justify-between items-center px-4 py-8 font-sans selection:bg-black selection:text-[#FFE600]">

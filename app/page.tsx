@@ -328,7 +328,12 @@ export default function Home() {
           fetch('/api/movies/genre/28'),
           fetch('/api/anime/collection'),
         ]);
-        const payloads = await Promise.all(requests.map((response) => response.json()));
+        const payloads = await Promise.all(requests.map(async (response) => {
+          if (!response.ok) throw new Error(`Collection request failed with status ${response.status}`);
+          const payload = await response.json();
+          if (!Array.isArray(payload.results)) throw new Error('Collection response has an invalid shape');
+          return payload;
+        }));
         if (!active) return;
         setCollections({
           trending: payloads[0].results || [],

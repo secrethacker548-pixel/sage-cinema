@@ -2,6 +2,7 @@
 
 import { Maximize2, X } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useEffect } from 'react';
 import type { ActivePlayback } from '../lib/activePlayback';
 import { searchOnlineCaptions } from '../lib/captionSearch';
 import UnifiedPlayer from './UnifiedPlayer';
@@ -14,6 +15,12 @@ interface MiniPlayerProps {
 
 export default function MiniPlayer({ playback, onOpen, onClose }: MiniPlayerProps) {
   const title = playback.movie.title || playback.movie.name || 'Current screening';
+
+  useEffect(() => {
+    const remaining = Math.max(0, 25 * 60 * 1000 - (Date.now() - playback.updatedAt));
+    const timer = window.setTimeout(onClose, remaining);
+    return () => window.clearTimeout(timer);
+  }, [onClose, playback.updatedAt]);
 
   return (
     <motion.aside

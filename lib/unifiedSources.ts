@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 const SPEEDRACELIGHT_API = 'https://api.speedracelight.com';
 const PROXY_EXPIRY_MS = 30 * 60 * 1000;
+const RESOLVER_TIMEOUT_MS = 15 * 1000;
 const ENCRYPTION_HEADER = [109, 118, 109, 49];
 const HASH_SEEDS = [
   1116352408, 1899447441, 3049323471, 3921009573,
@@ -26,7 +27,7 @@ export interface UnifiedSubtitle {
   url: string;
 }
 
-interface ResolveSourceOptions {
+export interface ResolveSourceOptions {
   type: 'movie' | 'tv';
   id: string;
   title: string;
@@ -34,14 +35,17 @@ interface ResolveSourceOptions {
   totalSeasons?: number;
   season?: number;
   episode?: number;
+  resolverId?: string;
 }
 
-const resolverPaths = [
+export const UNIFIED_RESOLVERS = [
   { id: 'cdn', path: '/cdn/sources-with-title', label: 'CDN pool' },
   { id: 'vsrc', path: '/vsrc/sources-with-title', label: 'Stream pool' },
   { id: 'm4uhd', path: '/m4uhd/sources-with-title', label: 'HD pool' },
   { id: 'superflix', path: '/superflix/sources-with-title', label: 'Backup pool' },
 ];
+
+export const DEFAULT_UNIFIED_RESOLVER = UNIFIED_RESOLVERS[0].id;
 
 function mix(value: number) {
   value >>>= 0;
@@ -186,7 +190,7 @@ function qualityLabel(value: unknown) {
 function requestParams(options: ResolveSourceOptions) {
   const mediaType = options.type === 'movie' ? 'Movie' : 'TV';
   const params: Record<string, string> = {
-    title: encodeURIComponent(options.title),
+    title: options.title,
     mediaType,
     tmdbId: options.id,
   };
@@ -200,28 +204,46 @@ function requestParams(options: ResolveSourceOptions) {
 async function fetchEncryptedSources(path: string, params: Record<string, string>, seed: string, mediaId: number) {
   const url = new URL(`${SPEEDRACELIGHT_API}${path}`);
   Object.entries({ ...params, enc: '2', seed }).forEach(([key, value]) => url.searchParams.set(key, value));
-  const response = await fetch(url, {
-    headers: { Accept: 'text/plain' },
-    cache: 'no-store',
-  });
-  if (!response.ok) throw new Error(`Unified source resolver returned ${response.status}`);
-  return decryptSources(await response.text(), seed, mediaId);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), RESOLVER_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: 'text/plain' },
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`Unified source resolver returned ${response.status}`);
+    return decryptSources(await response.text(), seed, mediaId);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function resolveUnifiedSources(options: ResolveSourceOptions) {
   const mediaId = Number(options.id);
   if (!Number.isInteger(mediaId)) return { sources: [], subtitles: [] };
 
-  const seedResponse = await fetch(`${SPEEDRACELIGHT_API}/seed?mediaId=${mediaId}`, {
-    cache: 'no-store',
-  });
+  const seedController = new AbortController();
+  const seedTimeout = setTimeout(() => seedController.abort(), RESOLVER_TIMEOUT_MS);
+  let seedResponse: Response;
+  try {
+    seedResponse = await fetch(`${SPEEDRACELIGHT_API}/seed?mediaId=${mediaId}`, {
+      cache: 'no-store',
+      signal: seedController.signal,
+    });
+  } finally {
+    clearTimeout(seedTimeout);
+  }
   if (!seedResponse.ok) throw new Error('Unified source seed unavailable');
   const seedData = (await seedResponse.json()) as { seed?: string };
   if (!seedData.seed) throw new Error('Unified source seed invalid');
 
   const params = requestParams(options);
+  const resolvers = options.resolverId
+    ? UNIFIED_RESOLVERS.filter((resolver) => resolver.id === options.resolverId)
+    : UNIFIED_RESOLVERS;
   const results = await Promise.allSettled(
-    resolverPaths.map(async (resolver) => ({
+    resolvers.map(async (resolver) => ({
       resolver,
       payload: await fetchEncryptedSources(resolver.path, params, seedData.seed as string, mediaId),
     }))
@@ -243,20 +265,21 @@ export async function resolveUnifiedSources(options: ResolveSourceOptions) {
           id: `subtitle-${subtitles.length + 1}`,
           lang: String(subtitle.lang || ''),
           language: String(subtitle.language || ''),
-          url: buildMediaProxyUrl(url),
+          url: buildSubtitleProxyUrl(url),
         });
       }
     });
     (payload.sources || []).forEach((source, index) => {
       const remoteUrl = String(source.url || source.file || source.src || '');
-      if (!/^https?:\/\//i.test(remoteUrl) || seenUrls.has(remoteUrl)) return;
+      const type = sourceType(source);
+      if (!/^https?:\/\//i.test(remoteUrl) || (type !== 'hls' && type !== 'mp4') || seenUrls.has(remoteUrl)) return;
       seenUrls.add(remoteUrl);
       const quality = qualityLabel(source.quality || source.label || source.resolution);
       sources.push({
         id: `${resolver.id}-${quality}-${index}`,
         label: quality,
         quality,
-        type: sourceType(source),
+        type,
         playbackUrl: buildMediaProxyUrl(remoteUrl),
         provider: resolver.label,
       });
@@ -265,5 +288,8 @@ export async function resolveUnifiedSources(options: ResolveSourceOptions) {
 
   const qualityRank: Record<string, number> = { '4K': 2160, '1080p': 1080, '720p': 720, '480p': 480, '360p': 360 };
   sources.sort((a, b) => (qualityRank[b.quality] || 0) - (qualityRank[a.quality] || 0));
-  return { sources, subtitles };
+  return {
+    sources,
+    subtitles,
+  };
 }

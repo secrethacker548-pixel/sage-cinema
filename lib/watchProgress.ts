@@ -11,7 +11,10 @@ const STORAGE_KEY = 'sage-cinema-watch-progress';
 function isProgress(value: unknown): value is WatchProgress {
   if (!value || typeof value !== 'object') return false;
   const progress = value as Partial<WatchProgress>;
-  return Number.isFinite(progress.position) && Number.isFinite(progress.duration);
+  const { position, duration, updatedAt } = progress;
+  return Number.isFinite(position) && (position as number) >= 0 &&
+    Number.isFinite(duration) && (duration as number) > 0 &&
+    Number.isFinite(updatedAt);
 }
 
 export function readAllWatchProgress(): WatchProgressMap {

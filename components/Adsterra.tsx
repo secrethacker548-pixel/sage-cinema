@@ -36,7 +36,11 @@ const DIRECT_LINK = process.env.NEXT_PUBLIC_ADSTERRA_DIRECT_LINK ?? '';
  */
 function isAppDownloaded(): boolean {
   if (typeof window === 'undefined') return false;
-  return localStorage.getItem('sagemovies_app_downloaded') === 'true';
+  try {
+    return localStorage.getItem('sagemovies_app_downloaded') === 'true';
+  } catch {
+    return false;
+  }
 }
 
 /**

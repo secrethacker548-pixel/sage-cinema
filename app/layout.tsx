@@ -5,6 +5,7 @@ import { Inter } from 'next/font/google';
 import type { ReactNode } from 'react';
 import CookieConsent from '../components/CookieConsent';
 import ErrorBoundary from '../components/ErrorBoundary';
+import { AdsterraSocialBar } from '../components/Adsterra';
 import PwaRegister from '../components/PwaRegister';
 import ScrollToTop from '../components/ScrollToTop';
 import { AppProvider } from '../lib/context/AppContext';
@@ -16,8 +17,10 @@ const inter = Inter({
   weight: ['400', '500', '600', '700', '800', '900'],
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://sage-cinema.phcodesage.chatgpt.site';
+
 export const metadata: Metadata = {
-  metadataBase: new URL('https://sage-cinema.phcodesage.chatgpt.site'),
+  metadataBase: new URL(siteUrl),
   title: {
     default: 'Sage Cinema — Find a world',
     template: '%s | Sage Cinema',
@@ -59,6 +62,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <PwaRegister />
             <ScrollToTop />
             <CookieConsent />
+            <AdsterraSocialBar />
             {children}
           </AppProvider>
         </ErrorBoundary>

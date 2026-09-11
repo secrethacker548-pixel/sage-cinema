@@ -163,7 +163,7 @@ export default function SearchModal({
                 >
                   <span className="relative w-5 h-5 rounded-none overflow-hidden shrink-0 border border-black">
                     <Image
-                      src={`${LOGO_URL}${b.logoPath}`}
+                      src={b.logoPath.startsWith('http') ? b.logoPath : `${LOGO_URL}${b.logoPath}`}
                       alt={b.label}
                       fill
                       className="object-cover"

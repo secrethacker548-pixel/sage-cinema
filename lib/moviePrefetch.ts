@@ -17,6 +17,11 @@ export function getMovieDetails<T extends TMDBMovie = TMDBMovie>(id: number | st
     .then((response) => (response.ok ? response.json() as Promise<T> : null))
     .catch(() => null);
   detailsCache.set(cacheKey, request as Promise<TMDBMovie | null>);
+  void request.then((data) => {
+    if (data === null && detailsCache.get(cacheKey) === request) {
+      detailsCache.delete(cacheKey);
+    }
+  });
   return request;
 }
 

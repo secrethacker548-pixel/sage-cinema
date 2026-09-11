@@ -10,14 +10,14 @@ export const dynamic = 'force-dynamic';
 export async function GET(request, { params }) {
   const { id } = await params;
   const { searchParams } = new URL(request.url);
-  const page = parseInt(searchParams.get('page') || '1');
+  const page = Number(searchParams.get('page') || '1');
   const apiKey = process.env.TMDB_API_KEY;
 
   if (!apiKey) {
     return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
   }
 
-  if (!/^\d+$/.test(id) || isNaN(page) || page < 1) {
+  if (!/^\d+$/.test(id) || !Number.isInteger(page) || page < 1 || page > 50) {
     return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
   }
 
@@ -34,7 +34,10 @@ export async function GET(request, { params }) {
         fetch(
           `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&with_watch_providers=${id}&watch_region=US&sort_by=popularity.desc&page=${tmdbPage}`,
           { next: { revalidate: 1800 } }
-        ).then((res) => res.json())
+        ).then(async (res) => {
+          if (!res.ok) throw new Error(`TMDB returned ${res.status}`);
+          return res.json();
+        })
       );
     }
 
@@ -46,7 +49,7 @@ export async function GET(request, { params }) {
       }
     });
 
-    const uniqueResults = Array.from(new Map(results.map((item) => [item.id, item])).values());
+    const uniqueResults = Array.from(new Map(results.map((item) => [`${item.media_type}:${item.id}`, item])).values());
     uniqueResults.sort((a, b) => b.popularity - a.popularity);
 
     const totalPages = responses[0]?.total_pages || 1;

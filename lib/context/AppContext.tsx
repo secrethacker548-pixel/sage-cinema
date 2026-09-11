@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useCallback, useContext, useState, useEffect } from 'react';
 import type { TMDBGenre } from '../../types/tmdb';
 import type { ReactNode } from 'react';
 
@@ -24,32 +24,47 @@ export function AppProvider({ children }: AppProviderProps) {
   const [hasDownloadedApp, setHasDownloadedApp] = useState<boolean>(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const downloaded = localStorage.getItem('sagemovies_app_downloaded') === 'true';
-      if (downloaded) {
-        setHasDownloadedApp(true);
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      if (typeof window === 'undefined') return;
+      try {
+        const downloaded = localStorage.getItem('sagemovies_app_downloaded') === 'true';
+        if (downloaded) setHasDownloadedApp(true);
+      } catch {
+        // Storage may be blocked in private browsing or restricted webviews.
       }
-    }
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const markAppDownloaded = () => {
+  const markAppDownloaded = useCallback(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('sagemovies_app_downloaded', 'true');
+      try {
+        localStorage.setItem('sagemovies_app_downloaded', 'true');
+      } catch {
+        // The in-memory state still applies for this session.
+      }
     }
     setHasDownloadedApp(true);
-  };
+  }, []);
 
-  const fetchGenres = async () => {
+  const fetchGenres = useCallback(async () => {
     setIsLoadingGenres(true);
     try {
       const res = await fetch('/api/genres');
+      if (!res.ok) throw new Error(`Genres request failed with status ${res.status}`);
       const data = await res.json();
 
       const genreMap: Record<number, string> = {};
-      if (data.genres) {
+      if (Array.isArray(data.genres)) {
         data.genres.forEach((g: TMDBGenre) => {
           genreMap[g.id] = g.name;
         });
+      } else {
+        throw new Error('Genres response has an invalid shape');
       }
       setGenres(genreMap);
     } catch (error) {
@@ -57,11 +72,18 @@ export function AppProvider({ children }: AppProviderProps) {
     } finally {
       setIsLoadingGenres(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchGenres();
-  }, []);
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      void fetchGenres();
+    });
+    return () => {
+      active = false;
+    };
+  }, [fetchGenres]);
 
   const refreshGenres = async () => {
     await fetchGenres();

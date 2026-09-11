@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
-  // Serve the APK from this deployment (public/sagemovies-latest.apk).
-  // Cloudflare R2 (*.r2.dev) previously used here is currently unreachable.
+  // Prefer an explicitly configured artifact URL; otherwise serve the APK bundled
+  // in public/. Keeping this configurable avoids returning a stale same-origin URL
+  // when deployments move the binary to object storage.
   const origin = request.nextUrl.origin;
-  const apkUrl = `${origin}/sagemovies-latest.apk`;
+  const apkUrl = process.env.ANDROID_APK_URL || process.env.NEXT_PUBLIC_ANDROID_APK_URL || `${origin}/sagemovies-latest.apk`;
 
   return NextResponse.json({
     latest_version: '1.5.0',

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { STREAMING_SERVICES } from '../lib/streamingServices';
 import { scrollToSection } from '../lib/utils/scrollToSection';
 
@@ -25,12 +26,14 @@ export default function ServiceBottomNav() {
               className="group flex flex-col md:flex-row items-center gap-1 md:gap-2 px-2.5 md:px-3.5 py-1 rounded-xl hover:bg-zinc-800 transition-colors shrink-0 active:scale-95"
             >
               <span className="relative w-7 h-7 md:w-8 md:h-8 rounded-lg overflow-hidden border border-zinc-800 group-hover:border-netflix-red transition-colors shrink-0 bg-zinc-900 flex items-center justify-center p-0.5 shadow-sm">
-                <img
+                <Image
                   src={logoSrc}
                   alt={s.name}
+                  fill
+                  sizes="32px"
                   className="w-full h-full object-contain rounded"
                   onError={(e) => {
-                    (e.target as HTMLElement).style.opacity = '0.5';
+                    e.currentTarget.style.opacity = '0.5';
                   }}
                 />
               </span>

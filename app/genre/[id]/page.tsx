@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Star, Play, Search, Film } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
@@ -24,13 +24,9 @@ const MovieDetailModal = dynamic(() => import('../../../components/MovieDetailMo
 
 const THUMB_URL = 'https://image.tmdb.org/t/p/w500';
 
-interface GenrePageProps {
-  params: Promise<{ id: string }>;
-}
-
-export default function GenrePage({ params }: GenrePageProps) {
-  const resolvedParams = use(params);
-  const id = resolvedParams.id;
+export default function GenrePage() {
+  const params = useParams<{ id: string }>();
+  const id = params?.id;
 
   const [movies, setMovies] = useState<TMDBMovie[]>([]);
   const [genreName, setGenreName] = useState('');
@@ -53,11 +49,16 @@ export default function GenrePage({ params }: GenrePageProps) {
 
   useEffect(() => {
     if (!id) return;
+    const controller = new AbortController();
+    let active = true;
 
     const fetchGenreData = async () => {
       setIsLoading(true);
       try {
-        const moviesRes = await fetch(`/api/movies/genre/${id}`).then((res) => res.json());
+        const response = await fetch(`/api/movies/genre/${id}`, { signal: controller.signal });
+        if (!response.ok) throw new Error(`Genre request failed with status ${response.status}`);
+        const moviesRes = await response.json();
+        if (!Array.isArray(moviesRes.results)) throw new Error('Genre response has an invalid shape');
 
         let currentGenreName = 'Genre';
         const numericId = parseInt(id);
@@ -65,16 +66,24 @@ export default function GenrePage({ params }: GenrePageProps) {
           currentGenreName = genres[numericId];
         }
 
-        setGenreName(currentGenreName);
-        setMovies(moviesRes.results || []);
+        if (active) {
+          setGenreName(currentGenreName);
+          setMovies(moviesRes.results);
+        }
       } catch (error) {
-        console.error('Error fetching genre data:', error);
+        if (active && !(error instanceof DOMException && error.name === 'AbortError')) {
+          console.error('Error fetching genre data:', error);
+        }
       } finally {
-        setIsLoading(false);
+        if (active) setIsLoading(false);
       }
     };
 
     fetchGenreData();
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [id, genres]);
 
   return (
@@ -159,7 +168,7 @@ export default function GenrePage({ params }: GenrePageProps) {
               NO TITLES FOUND
             </h3>
             <p className="text-xs font-bold text-zinc-400 max-w-md">
-              We couldn't find any titles for this category right now.
+              We couldn&apos;t find any titles for this category right now.
             </p>
           </div>
         )}

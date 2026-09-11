@@ -12,6 +12,11 @@ export interface SearchBrand {
   label: string;
   aliases: string[];
   logoPath: string;
+  tmdb: {
+    provider?: number;
+    network?: number;
+    company?: string;
+  };
 }
 
 export const SEARCH_BRANDS: SearchBrand[] = [
@@ -20,78 +25,91 @@ export const SEARCH_BRANDS: SearchBrand[] = [
     label: 'Vivamax',
     aliases: ['vivamax', 'viva'],
     logoPath: 'https://image.tmdb.org/t/p/w92/25oYoXHsfWYlddAzJSBReajN3BM.png',
+    tmdb: { company: '149142|8356' },
   },
   {
     key: 'netflix',
     label: 'Netflix',
     aliases: ['netflix'],
     logoPath: 'https://image.tmdb.org/t/p/w92/pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg',
+    tmdb: { provider: 8, network: 213 },
   },
   {
     key: 'disney',
     label: 'Disney+',
     aliases: ['disney', 'disney+', 'disney plus'],
     logoPath: 'https://image.tmdb.org/t/p/w92/97yvRBw1GzX7fXprcF80er19ot.jpg',
+    tmdb: { provider: 337, network: 2739 },
   },
   {
     key: 'amazon',
     label: 'Prime Video',
     aliases: ['amazon', 'prime', 'prime video', 'amazon prime'],
     logoPath: 'https://image.tmdb.org/t/p/w92/pvske1MyAoymrs5bguRfVqYiM9a.jpg',
+    tmdb: { provider: 9, network: 1024 },
   },
   {
     key: 'apple',
     label: 'Apple TV+',
     aliases: ['apple', 'apple tv', 'apple tv+'],
     logoPath: 'https://image.tmdb.org/t/p/w92/mcbz1LgtErU9p4UdbZ0rG6RTWHX.jpg',
+    tmdb: { provider: 350, network: 2552 },
   },
   {
     key: 'hbo',
     label: 'HBO Max',
     aliases: ['hbo', 'hbo max', 'max'],
     logoPath: 'https://image.tmdb.org/t/p/w92/jbe4gVSfRlbPTdESXhEKpornsfu.jpg',
+    tmdb: { provider: 1899, network: 49 },
   },
   {
     key: 'paramount',
     label: 'Paramount+',
     aliases: ['paramount', 'paramount+'],
     logoPath: 'https://image.tmdb.org/t/p/w92/fts6X10Jn4QT0X6ac3udKEn2tJA.jpg',
+    tmdb: { provider: 531, network: 4330 },
   },
   {
     key: 'hulu',
     label: 'Hulu',
     aliases: ['hulu'],
     logoPath: 'https://image.tmdb.org/t/p/w92/bxBlRPEPpMVDc4jMhSrTf2339DW.jpg',
+    tmdb: { provider: 15, network: 453 },
   },
   {
     key: 'warner',
     label: 'Warner Bros',
     aliases: ['warner', 'warner bros', 'wb'],
     logoPath: 'https://image.tmdb.org/t/p/w92/zhD3hhtKB5qyv7ZeL4uLpNxgMVU.png',
+    tmdb: { company: '174' },
   },
   {
     key: 'marvel',
     label: 'Marvel',
     aliases: ['marvel', 'marvel studios'],
     logoPath: 'https://image.tmdb.org/t/p/w92/hUzeosd33nzE5MStB42PioTJw15.png',
+    tmdb: { company: '420' },
   },
   {
     key: 'universal',
     label: 'Universal',
     aliases: ['universal', 'universal pictures'],
     logoPath: 'https://image.tmdb.org/t/p/w92/8lvHyhjr8oUKOOy2dKXoALWKdp0.png',
+    tmdb: { company: '33' },
   },
   {
     key: 'sony',
     label: 'Sony Pictures',
     aliases: ['sony', 'columbia', 'sony pictures'],
     logoPath: 'https://image.tmdb.org/t/p/w92/b9HLm1GDP4j3PF9TZQercD0r8kg.jpg',
+    tmdb: { company: '34|5' },
   },
   {
     key: 'a24',
     label: 'A24',
     aliases: ['a24'],
     logoPath: 'https://image.tmdb.org/t/p/w92/u7nsZM0vmBMDpzIy27164AwMjXV.png',
+    tmdb: { company: '41077' },
   },
 ];
 

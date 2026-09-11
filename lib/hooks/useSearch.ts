@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { TMDBMovie } from '../../types/tmdb';
 import { getCachedRequest, setCachedRequest } from '../utils/requestCache';
 
@@ -14,17 +14,21 @@ export function useSearch(debounceMs: number = 500): UseSearchReturn {
   const [results, setResults] = useState<TMDBMovie[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  useEffect(() => {
-    if (!query) {
-      setResults([]);
-      setIsSearching(false);
-      return;
-    }
+  const updateQuery = useCallback((nextQuery: string) => {
+    setQuery(nextQuery);
+    const hasQuery = nextQuery.trim().length > 0;
+    setIsSearching(hasQuery);
+    setResults([]);
+  }, []);
 
-    setIsSearching(true);
+  useEffect(() => {
+    const normalizedQuery = query.trim();
+    if (!normalizedQuery) return;
+
+    const controller = new AbortController();
     const delayDebounce = setTimeout(async () => {
       try {
-        const cacheKey = `search-${query}`;
+        const cacheKey = `search-${normalizedQuery}`;
         const cachedData = getCachedRequest(cacheKey);
 
         if (cachedData) {
@@ -33,20 +37,29 @@ export function useSearch(debounceMs: number = 500): UseSearchReturn {
           return;
         }
 
-        const res = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
+        const res = await fetch(`/api/search?query=${encodeURIComponent(normalizedQuery)}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error(`Search request failed with status ${res.status}`);
         const data = await res.json();
         const searchResults = data.results || [];
 
         setResults(searchResults);
         setCachedRequest(cacheKey, searchResults);
       } catch (error) {
-        console.error('Search error:', error);
+        if (!controller.signal.aborted && !(error instanceof DOMException && error.name === 'AbortError')) {
+          console.error('Search error:', error);
+          setResults([]);
+        }
       } finally {
-        setIsSearching(false);
+        if (!controller.signal.aborted) setIsSearching(false);
       }
     }, debounceMs);
-    return () => clearTimeout(delayDebounce);
+    return () => {
+      clearTimeout(delayDebounce);
+      controller.abort();
+    };
   }, [query, debounceMs]);
 
-  return { query, setQuery, results, isSearching };
+  return { query, setQuery: updateQuery, results, isSearching };
 }

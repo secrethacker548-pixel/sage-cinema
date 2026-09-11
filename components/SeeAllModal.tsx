@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { Play, Star, X, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -39,7 +39,7 @@ export default function SeeAllModal({
     onClose();
   };
 
-  const fetchMore = async () => {
+  const fetchMore = useCallback(async () => {
     if (isLoadingMore || !hasMore || !category || category === 'history') return;
 
     setIsLoadingMore(true);
@@ -60,13 +60,14 @@ export default function SeeAllModal({
       }
 
       const res = await fetch(url);
+      if (!res.ok) throw new Error(`Collection request failed with status ${res.status}`);
       const data = await res.json();
 
       if (data.results && data.results.length > 0) {
         setItems((prev) => {
           const newItems = [...prev, ...data.results];
           // Filter duplicates
-          return Array.from(new Map(newItems.map((item) => [item.id, item])).values());
+          return Array.from(new Map(newItems.map((item) => [`${item.media_type || 'unknown'}:${item.id}`, item])).values());
         });
         setPage(nextPage);
         setHasMore(data.hasMore);
@@ -79,7 +80,7 @@ export default function SeeAllModal({
     } finally {
       setIsLoadingMore(false);
     }
-  };
+  }, [category, hasMore, isLoadingMore, page]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -96,7 +97,7 @@ export default function SeeAllModal({
     }
 
     return () => observer.disconnect();
-  }, [observerTarget, hasMore, isLoadingMore, page]);
+  }, [fetchMore, hasMore, isLoadingMore]);
 
   return (
     <motion.div
@@ -174,7 +175,7 @@ export default function SeeAllModal({
           ) : (
             <div className="text-center animate-in fade-in duration-1000">
               <p className="text-lg font-bold text-gray-400">
-                You've reached the end of the collection.
+                You&apos;ve reached the end of the collection.
               </p>
               <p className="mt-2 italic">New titles are added every day!</p>
             </div>

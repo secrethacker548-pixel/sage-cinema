@@ -122,12 +122,15 @@ export async function GET(request, { params }) {
   const { type, id } = await params;
   const { searchParams } = new URL(request.url);
 
-  if (!type || !id || !['movie', 'tv'].includes(type)) {
+  if (!type || !id || !['movie', 'tv'].includes(type) || !/^\d+$/.test(id)) {
     return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
   }
 
   const season = parseInt(searchParams.get('season') || '1', 10) || 1;
   const episode = parseInt(searchParams.get('episode') || '1', 10) || 1;
+  if (season < 1 || episode < 1) {
+    return NextResponse.json({ error: 'Invalid season or episode' }, { status: 400 });
+  }
 
   const entries = await Promise.all(
     VIDEO_SERVERS.map(async (s) => {

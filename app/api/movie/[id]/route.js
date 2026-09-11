@@ -10,12 +10,27 @@ export async function GET(request, { params }) {
     return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
   }
 
+  const numericId = Number(id);
+  if (!['movie', 'tv'].includes(mediaType) || !/^\d+$/.test(id) || !Number.isSafeInteger(numericId) || numericId < 1) {
+    return NextResponse.json({ error: 'Invalid movie parameters' }, { status: 400 });
+  }
+
   try {
     const response = await fetch(
       `https://api.themoviedb.org/3/${mediaType}/${id}?api_key=${apiKey}&append_to_response=production_companies,videos,credits`,
       { next: { revalidate: 3600 } }
     );
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      return NextResponse.json(
+        { error: data.status_message || 'Movie not found' },
+        { status: response.status === 404 ? 404 : 502 }
+      );
+    }
     const data = await response.json();
+    if (!data || typeof data !== 'object' || !Number.isSafeInteger(Number(data.id))) {
+      return NextResponse.json({ error: 'Movie response has an invalid shape' }, { status: 502 });
+    }
 
     if (data.success === false) {
       return NextResponse.json(

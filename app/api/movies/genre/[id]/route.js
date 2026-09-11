@@ -4,9 +4,14 @@ export async function GET(request, { params }) {
   const { id } = await params;
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type') === 'tv' ? 'tv' : 'movie';
-  const page = parseInt(searchParams.get('page') || '1');
+  const page = Number(searchParams.get('page') || '1');
   const apiKey = process.env.TMDB_API_KEY;
   const results = [];
+
+  if (!apiKey) return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
+  if (!/^\d+$/.test(id) || !Number.isInteger(page) || page < 1 || page > 50) {
+    return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
+  }
 
   try {
     const startTmdbPage = (page - 1) * 2 + 1;
@@ -17,6 +22,7 @@ export async function GET(request, { params }) {
         `https://api.themoviedb.org/3/discover/${type}?api_key=${apiKey}&with_genres=${id}&sort_by=popularity.desc&page=${tmdbPage}`,
         { next: { revalidate: 3600 } }
       );
+      if (!response.ok) throw new Error(`TMDB returned ${response.status}`);
       const data = await response.json();
       if (data.results) {
         data.results.forEach(item => item.media_type = type);
@@ -24,7 +30,7 @@ export async function GET(request, { params }) {
       }
     }
     
-    const uniqueResults = Array.from(new Map(results.map(item => [item.id, item])).values());
+    const uniqueResults = Array.from(new Map(results.map(item => [`${item.media_type}:${item.id}`, item])).values());
     uniqueResults.sort((a, b) => b.popularity - a.popularity);
     
     return NextResponse.json({

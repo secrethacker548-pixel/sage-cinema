@@ -10,12 +10,22 @@ export const EMPTY_SITE_STATS: SiteStats = {
   movieViews: {},
 };
 
+let visitRequest: Promise<SiteStats> | null = null;
+
 function parseStats(value: unknown): SiteStats {
   if (!value || typeof value !== 'object') return EMPTY_SITE_STATS;
   const data = value as Partial<SiteStats>;
+  const movieViews: Record<string, number> = {};
+  if (data.movieViews && typeof data.movieViews === 'object') {
+    Object.entries(data.movieViews).forEach(([movieId, count]) => {
+      if (/^\d+$/.test(movieId) && Number.isFinite(count)) {
+        movieViews[movieId] = Math.max(0, Number(count));
+      }
+    });
+  }
   return {
     totalVisits: Number.isFinite(data.totalVisits) ? Math.max(0, Number(data.totalVisits)) : 0,
-    movieViews: data.movieViews && typeof data.movieViews === 'object' ? data.movieViews : {},
+    movieViews,
   };
 }
 
@@ -38,16 +48,23 @@ export async function recordSiteVisit() {
   }
 
   if (!hasRecordedVisit) {
-    try {
-      window.sessionStorage.setItem(visitMarker, '1');
-    } catch {
-      // Ignore storage failures; the server can still count this visit.
+    if (!visitRequest) {
+      visitRequest = requestStats({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'visit' }),
+      }).then((stats) => {
+        try {
+          window.sessionStorage.setItem(visitMarker, '1');
+        } catch {
+          // Ignore storage failures; the server can still count this visit.
+        }
+        return stats;
+      }).finally(() => {
+        visitRequest = null;
+      });
     }
-    return requestStats({
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'visit' }),
-    });
+    return visitRequest;
   }
 
   return requestStats();

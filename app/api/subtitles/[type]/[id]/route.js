@@ -36,12 +36,13 @@ export async function GET(request, { params }) {
   const { searchParams } = new URL(request.url);
   const apiKey = process.env.SUBDL_API_KEY;
 
-  if (!apiKey) {
-    return NextResponse.json({ subtitles: [], configured: false, message: 'Online caption search is not configured yet.' });
+  const numericId = Number(id);
+  if (!id || !['movie', 'tv'].includes(type) || !/^\d+$/.test(id) || !Number.isSafeInteger(numericId) || numericId < 1) {
+    return NextResponse.json({ error: 'Invalid subtitle parameters' }, { status: 400 });
   }
 
-  if (!id || !['movie', 'tv'].includes(type)) {
-    return NextResponse.json({ error: 'Invalid subtitle parameters' }, { status: 400 });
+  if (!apiKey) {
+    return NextResponse.json({ subtitles: [], configured: false, message: 'Online caption search is not configured yet.' });
   }
 
   const requestedLanguage = languageCode(searchParams.get('lang'), 'en');
@@ -58,8 +59,14 @@ export async function GET(request, { params }) {
   const year = searchParams.get('year');
   const season = searchParams.get('season');
   const episode = searchParams.get('episode');
-  if (title) query.searchParams.set('film_name', title);
-  if (year) query.searchParams.set('year', year);
+  if (season && (!/^\d+$/.test(season) || Number(season) < 1)) {
+    return NextResponse.json({ error: 'Invalid season' }, { status: 400 });
+  }
+  if (episode && (!/^\d+$/.test(episode) || Number(episode) < 1)) {
+    return NextResponse.json({ error: 'Invalid episode' }, { status: 400 });
+  }
+  if (title) query.searchParams.set('film_name', title.slice(0, 200));
+  if (year && /^\d{4}$/.test(year)) query.searchParams.set('year', year);
   if (type === 'tv' && season) query.searchParams.set('season_number', season);
   if (type === 'tv' && episode) query.searchParams.set('episode_number', episode);
 

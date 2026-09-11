@@ -1,17 +1,27 @@
 import { NextResponse } from 'next/server';
 import { getServer, DEFAULT_LANG, SUBTITLE_LANGUAGES } from '../../../../../lib/videoServers';
-import { resolveUnifiedSources } from '../../../../../lib/unifiedSources';
+import {
+  DEFAULT_UNIFIED_RESOLVER,
+  resolveUnifiedSources,
+  UNIFIED_RESOLVERS,
+} from '../../../../../lib/unifiedSources';
 
 export async function GET(request, { params }) {
   const resolvedParams = await params;
   const { type, id } = resolvedParams;
   const { searchParams } = new URL(request.url);
 
-  if (!type || !id || !['movie', 'tv'].includes(type)) {
+  const numericId = Number(id);
+  if (!type || !id || !['movie', 'tv'].includes(type) || !/^\d+$/.test(id) || !Number.isSafeInteger(numericId) || numericId < 1) {
     return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
   }
 
-  const server = getServer(searchParams.get('server'));
+  const useUnifiedPlayer = searchParams.get('player') === 'unified';
+  const requestedServer = searchParams.get('server');
+  const unifiedResolver = UNIFIED_RESOLVERS.some((resolver) => resolver.id === requestedServer)
+    ? requestedServer
+    : DEFAULT_UNIFIED_RESOLVER;
+  const server = getServer(requestedServer);
 
   const requestedLang = searchParams.get('lang') || DEFAULT_LANG;
   const lang = SUBTITLE_LANGUAGES.some((l) => l.code === requestedLang)
@@ -20,7 +30,9 @@ export async function GET(request, { params }) {
 
   const season = parseInt(searchParams.get('season') || '1', 10) || 1;
   const episode = parseInt(searchParams.get('episode') || '1', 10) || 1;
-  const useUnifiedPlayer = searchParams.get('player') === 'unified';
+  if (season < 1 || episode < 1) {
+    return NextResponse.json({ error: 'Invalid season or episode' }, { status: 400 });
+  }
 
   const embedURL = server.build(type, id, {
     lang: server.supportsLang ? lang : undefined,
@@ -33,28 +45,27 @@ export async function GET(request, { params }) {
       const unified = await resolveUnifiedSources({
         type,
         id,
-        title: searchParams.get('title') || '',
-        year: searchParams.get('year') || undefined,
+        title: (searchParams.get('title') || '').slice(0, 200),
+        year: /^\d{4}$/.test(searchParams.get('year') || '') ? searchParams.get('year') : undefined,
         totalSeasons: parseInt(searchParams.get('totalSeasons') || '0', 10) || undefined,
         season,
         episode,
+        resolverId: unifiedResolver,
       });
 
       return NextResponse.json({
         player: 'unified',
         sources: unified.sources,
         subtitles: unified.subtitles,
-        server: server.id,
-        fallbackEmbedURL: embedURL,
-        langApplied: server.supportsLang ? lang : null,
+        server: unifiedResolver,
+        langApplied: lang,
       });
     } catch (error) {
       console.error('Unified source error:', error);
       return NextResponse.json({
         player: 'unavailable',
         sources: [],
-        server: server.id,
-        fallbackEmbedURL: embedURL,
+        server: unifiedResolver,
         error: 'A clean playback source is not available yet.',
       });
     }
