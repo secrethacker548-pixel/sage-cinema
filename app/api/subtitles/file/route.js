@@ -5,7 +5,6 @@ import { isIP } from 'node:net';
 
 export const runtime = 'nodejs';
 
-const SUBTITLE_HOST = 'dl.subdl.com';
 const MAX_SUBTITLE_BYTES = 2 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
 const SUBTITLE_TIMEOUT_MS = 10 * 1000;
@@ -54,7 +53,12 @@ async function fetchSubtitle(url) {
     let upstream;
     try {
       upstream = await fetch(parsedUrl, {
-        headers: { Accept: 'text/plain, text/vtt, application/x-subrip, */*' },
+        headers: {
+          Accept: 'text/plain, text/vtt, application/x-subrip, */*',
+          Origin: 'https://player.videasy.to',
+          Referer: 'https://player.videasy.to/',
+          'User-Agent': 'Mozilla/5.0 (Sage Cinema unified player)',
+        },
         cache: 'no-store',
         redirect: 'manual',
         signal: controller.signal,
@@ -102,11 +106,8 @@ export async function GET(request) {
     return new Response('Invalid subtitle URL', { status: 400 });
   }
 
-  if (parsedUrl.protocol !== 'https:' || parsedUrl.hostname !== SUBTITLE_HOST) {
-    return new Response('Unsupported subtitle source', { status: 400 });
-  }
-
   try {
+    await assertPublicSubtitleUrl(parsedUrl);
     const upstream = await fetchSubtitle(parsedUrl.toString());
     if (!upstream.ok) return new Response('Subtitle source unavailable', { status: upstream.status });
     const contentLength = Number(upstream.headers.get('content-length') || 0);
