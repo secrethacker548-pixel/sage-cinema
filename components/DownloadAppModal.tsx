@@ -104,7 +104,6 @@ export default function DownloadAppModal({ isOpen, onClose }: DownloadAppModalPr
       return;
     }
     setDownloadUrl(nextDownloadUrl);
-    markAppDownloaded();
     setIsCountingDown(true);
     setCountdown(5);
     setHasStartedDownload(false);

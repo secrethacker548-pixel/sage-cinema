@@ -175,6 +175,15 @@ a { color: inherit; text-decoration: none; }
 .mini-player-stage iframe { display: block; width: 100%; height: 100%; border: 0; background: #000; }
 .mini-player-open-label { position: absolute; right: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 7px 10px; border: 1px solid rgba(255, 255, 255, .32); border-radius: 999px; color: white; background: rgba(7, 9, 18, .82); backdrop-filter: blur(9px); font-size: 11px; font-weight: 800; }
 .mini-player-open-label:hover { color: var(--ink); border-color: var(--lime); background: var(--lime); }
+.home-ad-slot, .nebula-ad { display: grid; place-items: center; min-height: 100px; padding: 8px 0; }
+.home-ad-slot { width: min(728px, calc(100% - 32px)); margin: 12px auto 24px; }
+.nebula-ad-under-player { margin: 12px 0 2px; }
+.adsterra-partner-offer { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid rgba(83, 229, 255, .24); border-radius: 14px; color: var(--paper); background: rgba(16, 20, 39, .66); }
+.adsterra-partner-offer > div { display: grid; gap: 4px; min-width: 0; }
+.adsterra-partner-offer span { color: var(--cyan); font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.adsterra-partner-offer strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.adsterra-partner-offer button { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; min-height: 34px; padding: 7px 11px; border: 1px solid rgba(215, 255, 97, .55); border-radius: 999px; color: var(--ink); background: var(--lime); cursor: pointer; font-size: 11px; font-weight: 800; }
+.adsterra-partner-offer button:hover { background: var(--cyan); }
 
 .search-layer, .detail-layer { position: fixed; z-index: 60; inset: 0; display: grid; place-items: center; padding: clamp(12px, 3vw, 32px); overflow: hidden; background: radial-gradient(circle at 18% 22%, rgba(139,92,255,.17), transparent 28%), radial-gradient(circle at 88% 78%, rgba(83,229,255,.11), transparent 28%), rgba(5,6,14,.86); backdrop-filter: blur(20px) saturate(125%); overscroll-behavior: none; }
 .search-panel { position: relative; isolation: isolate; display: flex; flex-direction: column; width: min(1160px, 100%); min-width: 0; height: min(860px, calc(100svh - clamp(24px, 6vw, 64px))); max-height: calc(100svh - clamp(24px, 6vw, 64px)); overflow: hidden; padding: clamp(22px, 3.4vw, 42px); border: 1px solid rgba(186,197,255,.27); border-radius: 28px; color: var(--paper); background: linear-gradient(145deg, rgba(18,23,49,.985), rgba(7,9,18,.99) 74%); box-shadow: 0 34px 110px rgba(0,0,0,.62), 0 0 0 1px rgba(83,229,255,.04), inset 0 1px rgba(255,255,255,.045); font-family: var(--display-font); }
@@ -433,6 +442,7 @@ a { color: inherit; text-decoration: none; }
 .idle-title-lockup strong { max-width: 72%; color: white; font-size: clamp(22px, 3vw, 44px); line-height: .98; letter-spacing: -.055em; }
 .player-embed { display: block; width: 100%; height: 100%; min-width: 100%; min-height: 100%; border: 0; background: #000; }
 .unified-player { position: relative; overflow: visible; background: transparent; }
+.unified-player:focus-visible { outline: 2px solid var(--detail-lime); outline-offset: 4px; }
 .unified-player-compact { position: absolute; inset: 0; overflow: hidden; background: #020307; }
 .unified-player-stage { position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: #020307; }
 .unified-player-compact .unified-player-stage { position: absolute; inset: 0; aspect-ratio: auto; }
@@ -463,6 +473,9 @@ a { color: inherit; text-decoration: none; }
 .unified-paused-content small { color: var(--detail-muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 .unified-player-dock { position: relative; z-index: 6; display: grid; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid rgba(180, 192, 255, .14); background: rgba(10, 14, 27, .96); transition: opacity .2s ease, max-height .2s ease, padding .2s ease; }
 .unified-player-dock.is-hidden { max-height: 0; padding-top: 0; padding-bottom: 0; overflow: hidden; opacity: 0; pointer-events: none; }
+.unified-player-dock-compact { position: absolute; right: 0; bottom: 0; left: 0; z-index: 7; padding: 6px 8px 8px; border-top: 0; background: linear-gradient(0deg, rgba(2, 3, 7, .92), rgba(2, 3, 7, 0)); pointer-events: auto; }
+.unified-player-dock-compact .unified-player-progress-row { gap: 6px; color: rgba(255, 255, 255, .82); font-size: 10px; }
+.unified-player-dock-compact .unified-player-progress-row input { height: 4px; }
 .unified-controls-layer { position: absolute; z-index: 20; inset: 0; display: grid; place-items: center; padding: 22px; background: rgba(4, 6, 14, .48); backdrop-filter: blur(10px) saturate(1.2); }
 .unified-player-menu-modal { width: min(470px, 100%); max-height: calc(100% - 20px); overflow: visible; border-color: rgba(216, 255, 99, .32); background: rgba(10, 14, 27, .96); box-shadow: 0 28px 80px rgba(0, 0, 0, .58), 0 0 0 1px rgba(83, 229, 255, .08); }
 .unified-player-menu-heading > div { display: inline-flex; align-items: center; gap: 12px; }

@@ -28,7 +28,7 @@ import {
 import type { TMDBMovie } from '../../../../types/tmdb';
 import { cn } from '../../../../lib/utils';
 import { getMovieDetails } from '../../../../lib/moviePrefetch';
-import { AdsterraNativeBanner, openAdsterraDirectLink } from '../../../../components/Adsterra';
+import { AdsterraNativeBanner, AdsterraPartnerOffer } from '../../../../components/Adsterra';
 import UnifiedPlayer from '../../../../components/UnifiedPlayer';
 import SageLoader from '../../../../components/SageLoader';
 import { searchOnlineCaptions } from '../../../../lib/captionSearch';
@@ -70,13 +70,8 @@ export default function MovieDetailPage() {
   const [similarMovies, setSimilarMovies] = useState<TMDBMovie[]>([]);
   const [showUpNext, setShowUpNext] = useState(false);
 
-  const playbackInteractions = React.useRef(0);
   const sourceRequestRef = React.useRef<AbortController | null>(null);
   const isNavScrolled = useScroll(16);
-  const registerPlaybackAdInteraction = React.useCallback(() => {
-    playbackInteractions.current += 1;
-    if (playbackInteractions.current % 3 === 0) openAdsterraDirectLink();
-  }, []);
 
   useEffect(() => () => {
     sourceRequestRef.current?.abort();
@@ -443,6 +438,8 @@ export default function MovieDetailPage() {
             )}
           </div>
 
+          {isPlaying && embedUrl && !error && <AdsterraNativeBanner className="nebula-ad nebula-ad-under-player" />}
+
           <section id="playback-sources" className="source-card-under-player" aria-label="Servers">
             <div className="source-pill-list">
               {SOURCE_SERVER_OPTIONS.map((item) => {
@@ -453,7 +450,6 @@ export default function MovieDetailPage() {
                     key={item.id}
                     className={cn('source-pill', selected && 'is-selected')}
                     onClick={() => {
-                      registerPlaybackAdInteraction();
                       handleServerChange(item.id);
                     }}
                   >
@@ -505,7 +501,6 @@ export default function MovieDetailPage() {
             className="watch-cta"
             disabled={isLoading}
             onClick={() => {
-              registerPlaybackAdInteraction();
               handlePlay();
             }}
           >
@@ -557,7 +552,6 @@ export default function MovieDetailPage() {
                       key={episodeNumber}
                       className={cn('episode-chip', selected && 'is-selected', watched && 'is-watched')}
                       onClick={() => {
-                        registerPlaybackAdInteraction();
                         setSelectedEpisode(episodeNumber);
                         if (isPlaying) loadVideoSource(server, lang, selectedSeason, episodeNumber);
                         else handlePlay(selectedSeason, episodeNumber);
@@ -612,7 +606,7 @@ export default function MovieDetailPage() {
             </div>
           </details>
 
-          {isPlaying && embedUrl && !error && <AdsterraNativeBanner className="nebula-ad" />}
+          <AdsterraPartnerOffer />
 
           <section className="story-card">
             <div className="story-heading">

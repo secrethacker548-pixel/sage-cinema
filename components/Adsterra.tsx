@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { hasCookieConsent, useCookieConsent } from '../lib/cookieConsent';
 import { useAppContext } from '../lib/context/AppContext';
 
 /**
- * Adsterra ad units for sagemovies.netlify.app (Adsterra site 5928166).
+ * Adsterra ad units for the production Sage Cinema hostname.
  *
  * Values come from the dashboard (Websites -> site -> GET CODE) and are per-unit:
  * each has its own pl* subdomain, path and container id. They cannot be derived or
@@ -58,6 +58,10 @@ export function openAdsterraDirectLink(): boolean {
   }
 }
 
+export function isAdsterraDirectLinkConfigured() {
+  return ADSTERRA_ENABLED && Boolean(DIRECT_LINK);
+}
+
 const SOCIAL_BAR_SRC =
   'https://pl30470197.effectivecpmnetwork.com/e3/96/62/e396627c978253460574b0e8b00bb87a.js';
 
@@ -103,14 +107,53 @@ export function AdsterraNativeBanner({ className = 'px-4 md:px-12 my-6' }: { cla
   const consent = useCookieConsent();
   const active = ADSTERRA_ENABLED && consent?.advertising === true && !hasDownloadedApp && !isAppDownloaded();
   const hostRef = useRef<HTMLDivElement>(null);
+  const [nearViewport, setNearViewport] = useState(false);
 
-  useAdScript(NATIVE_BANNER_SRC, active, hostRef);
+  useEffect(() => {
+    if (!active) {
+      return;
+    }
+    const host = hostRef.current;
+    if (!host) return;
+    if (!('IntersectionObserver' in window)) return;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return;
+      setNearViewport(true);
+      observer.disconnect();
+    }, { rootMargin: '600px 0px' });
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, [active]);
+
+  const canLoadWithoutObserver = typeof window === 'undefined' || !('IntersectionObserver' in window);
+  useAdScript(NATIVE_BANNER_SRC, active && (nearViewport || canLoadWithoutObserver), hostRef);
 
   if (!active) return null;
 
   return (
-    <div ref={hostRef} className={className}>
+    <div ref={hostRef} className={className} aria-label="Advertisement">
       <div id={NATIVE_BANNER_CONTAINER_ID} />
     </div>
+  );
+}
+
+export function AdsterraPartnerOffer() {
+  const { hasDownloadedApp } = useAppContext();
+  const consent = useCookieConsent();
+  const active = isAdsterraDirectLinkConfigured() && consent?.advertising === true && !hasDownloadedApp && !isAppDownloaded();
+
+  if (!active) return null;
+
+  return (
+    <aside className="adsterra-partner-offer" aria-label="Sponsored offer">
+      <div>
+        <span>Partner offer</span>
+        <strong>Support the screening room</strong>
+      </div>
+      <button type="button" onClick={openAdsterraDirectLink}>
+        Learn more <span aria-hidden="true">↗</span>
+      </button>
+    </aside>
   );
 }

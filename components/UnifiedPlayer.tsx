@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type InputEvent, type KeyboardEvent } from 'react';
 import { Captions, Gauge, Maximize2, Minimize2, MonitorPlay, Pause, Play, RotateCw, Search, Settings2, X } from 'lucide-react';
 import type Hls from 'hls.js';
 import type { UnifiedSource, UnifiedSubtitle } from '../lib/unifiedTypes';
@@ -72,8 +72,10 @@ export default function UnifiedPlayer({
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [isSeeking, setIsSeeking] = useState(false);
   const playbackRateRef = useRef(1);
   const controlsTimerRef = useRef<number | null>(null);
+  const wasPlayingBeforeSeekRef = useRef(false);
 
   const playableSources = useMemo(
     () => sources.filter((source) => source.type === 'hls' || source.type === 'mp4'),
@@ -100,6 +102,7 @@ export default function UnifiedPlayer({
     return playableSources[0];
   }, [playableSources, selectedQuality]);
   const currentQuality = selectedQuality === 'Auto' ? activeSource?.quality || 'Auto' : selectedQuality;
+  const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
 
   useEffect(() => {
     const handleFullscreenChange = () => setIsFullscreen(document.fullscreenElement === containerRef.current);
@@ -136,6 +139,9 @@ export default function UnifiedPlayer({
     video.pause();
     video.removeAttribute('src');
     video.load();
+    setCurrentTime(0);
+    setDuration(0);
+    setIsSeeking(false);
     setIsBuffering(true);
 
     const loadNative = () => {
@@ -281,6 +287,63 @@ export default function UnifiedPlayer({
     else video.pause();
   };
 
+  const seekTo = useCallback((requestedTime: number) => {
+    const video = videoRef.current;
+    if (!video || !Number.isFinite(requestedTime) || !Number.isFinite(video.duration) || video.duration <= 0) return;
+
+    const targetTime = Math.min(Math.max(requestedTime, 0), Math.max(video.duration - 0.05, 0));
+    setCurrentTime(targetTime);
+    try {
+      if (typeof video.fastSeek === 'function') video.fastSeek(targetTime);
+      else video.currentTime = targetTime;
+    } catch {
+      video.currentTime = targetTime;
+    }
+  }, []);
+
+  const seekBy = useCallback((seconds: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    seekTo(video.currentTime + seconds);
+  }, [seekTo]);
+
+  const beginSeek = () => {
+    if (!safeDuration || !videoRef.current) return;
+    wasPlayingBeforeSeekRef.current = !videoRef.current.paused;
+    setIsSeeking(true);
+    if (wasPlayingBeforeSeekRef.current) videoRef.current.pause();
+  };
+
+  const finishSeek = () => {
+    if (!isSeeking) return;
+    setIsSeeking(false);
+    if (wasPlayingBeforeSeekRef.current) videoRef.current?.play().catch(() => undefined);
+  };
+
+  const handleSeekInput = (event: FormEvent<HTMLInputElement> | InputEvent<HTMLInputElement>) => {
+    seekTo(Number(event.currentTarget.value));
+  };
+
+  const handlePlayerKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('button, input, a, select, textarea')) return;
+
+    const amount = event.shiftKey ? 30 : 10;
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      seekBy(-amount);
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      seekBy(amount);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      seekTo(0);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      seekTo(safeDuration);
+    }
+  };
+
   if (!activeSource) {
     return (
       <div className={`unified-player unified-player-empty${compact ? ' unified-player-compact' : ''}`}>
@@ -298,6 +361,9 @@ export default function UnifiedPlayer({
       ref={containerRef}
       onPointerDown={revealControls}
       onFocusCapture={revealControls}
+      onKeyDown={handlePlayerKeyDown}
+      tabIndex={0}
+      aria-label={`${title} player`}
     >
       <div className="unified-player-stage" onClick={handleStageClick}>
         <video
@@ -322,11 +388,22 @@ export default function UnifiedPlayer({
           onTimeUpdate={(event) => {
             const nextTime = event.currentTarget.currentTime;
             const nextDuration = event.currentTarget.duration;
-            setCurrentTime(nextTime);
+            if (Number.isFinite(nextTime)) setCurrentTime(nextTime);
+            setDuration(Number.isFinite(nextDuration) && nextDuration > 0 ? nextDuration : 0);
             if (progressKey) saveWatchProgress(progressKey, nextTime, nextDuration);
           }}
-          onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
-          onDurationChange={(event) => setDuration(event.currentTarget.duration)}
+          onLoadedMetadata={(event) => {
+            const nextDuration = event.currentTarget.duration;
+            setDuration(Number.isFinite(nextDuration) && nextDuration > 0 ? nextDuration : 0);
+          }}
+          onDurationChange={(event) => {
+            const nextDuration = event.currentTarget.duration;
+            setDuration(Number.isFinite(nextDuration) && nextDuration > 0 ? nextDuration : 0);
+          }}
+          onSeeked={(event) => {
+            finishSeek();
+            if (progressKey) saveWatchProgress(progressKey, event.currentTarget.currentTime, event.currentTarget.duration);
+          }}
           onError={() => {
             setIsBuffering(false);
             setPlaybackError('The clean stream could not be loaded.');
@@ -386,27 +463,31 @@ export default function UnifiedPlayer({
         )}
       </div>
 
-      {!compact && (
-        <div className={`unified-player-dock${!controlsVisible ? ' is-hidden' : ''}`}>
+      <div className={`unified-player-dock${!compact && !controlsVisible ? ' is-hidden' : ''}${compact ? ' unified-player-dock-compact' : ''}`}>
           <div className="unified-player-progress-row">
             <span>{formatTime(currentTime)}</span>
             <input
               type="range"
               min="0"
-              max={duration || 0}
+              max={safeDuration}
               step="0.1"
-              value={Math.min(currentTime, duration || 0)}
-              onChange={(event) => {
-                const nextTime = Number(event.target.value);
-                setCurrentTime(nextTime);
-                if (videoRef.current) videoRef.current.currentTime = nextTime;
-              }}
-              disabled={!duration}
+              value={Math.min(currentTime, safeDuration)}
+              onPointerDown={beginSeek}
+              onPointerUp={finishSeek}
+              onPointerCancel={finishSeek}
+              onBlur={finishSeek}
+              onInput={handleSeekInput}
+              onChange={handleSeekInput}
+              disabled={!safeDuration}
+              aria-valuemin={0}
+              aria-valuemax={safeDuration}
+              aria-valuenow={Math.min(currentTime, safeDuration)}
+              aria-valuetext={`${formatTime(currentTime)} of ${formatTime(safeDuration)}`}
               aria-label="Seek video"
             />
-            <span>{formatTime(duration)}</span>
+            <span>{formatTime(safeDuration)}</span>
           </div>
-          <div className="unified-player-toolbar">
+          {!compact && <div className="unified-player-toolbar">
             <button type="button" className="player-control-button" onClick={togglePlayback} aria-label={isPlaying ? 'Pause video' : 'Play video'}>
               {isPlaying ? <Pause size={15} /> : <Play size={15} fill="currentColor" />}
             </button>
@@ -508,9 +589,8 @@ export default function UnifiedPlayer({
               {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
               {isFullscreen ? 'Exit' : 'Full screen'}
             </button>
-          </div>
-        </div>
-      )}
+          </div>}
+      </div>
 
       {!compact && showControls && (
         <div
