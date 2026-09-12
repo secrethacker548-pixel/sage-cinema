@@ -475,14 +475,14 @@ a { color: inherit; text-decoration: none; }
 .unified-player-dock.is-hidden { max-height: 0; padding-top: 0; padding-bottom: 0; overflow: hidden; opacity: 0; pointer-events: none; }
 .unified-player-dock-compact { position: absolute; right: 0; bottom: 0; left: 0; z-index: 7; padding: 6px 8px 8px; border-top: 0; background: linear-gradient(0deg, rgba(2, 3, 7, .92), rgba(2, 3, 7, 0)); pointer-events: auto; }
 .unified-player-dock-compact .unified-player-progress-row { gap: 6px; color: rgba(255, 255, 255, .82); font-size: 10px; }
-.unified-player-dock-compact .unified-player-progress-row input { height: 4px; }
+.unified-player-dock-compact .unified-player-progress-row input { height: 24px; }
 .unified-controls-layer { position: absolute; z-index: 20; inset: 0; display: grid; place-items: center; padding: 22px; background: rgba(4, 6, 14, .48); backdrop-filter: blur(10px) saturate(1.2); }
 .unified-player-menu-modal { width: min(470px, 100%); max-height: calc(100% - 20px); overflow: visible; border-color: rgba(216, 255, 99, .32); background: rgba(10, 14, 27, .96); box-shadow: 0 28px 80px rgba(0, 0, 0, .58), 0 0 0 1px rgba(83, 229, 255, .08); }
 .unified-player-menu-heading > div { display: inline-flex; align-items: center; gap: 12px; }
 .unified-menu-close { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid rgba(198, 207, 255, .22); border-radius: 50%; color: var(--detail-muted); background: rgba(255, 255, 255, .04); cursor: pointer; }
 .unified-menu-close:hover { color: #151820; border-color: var(--detail-lime); background: var(--detail-lime); }
 .unified-player-progress-row { display: flex; align-items: center; gap: 9px; color: #aeb9d8; font-size: 11px; font-variant-numeric: tabular-nums; }
-.unified-player-progress-row input { min-width: 0; flex: 1; height: 5px; accent-color: var(--detail-lime); cursor: pointer; }
+.unified-player-progress-row input { min-width: 0; flex: 1; height: 28px; accent-color: var(--detail-lime); cursor: pointer; touch-action: none; -webkit-tap-highlight-color: transparent; }
 .unified-player-progress-row input:disabled { cursor: wait; opacity: .45; }
 .unified-player-toolbar { position: relative; z-index: 6; display: flex; align-items: center; gap: 8px; }
 .unified-toolbar-popover { position: relative; }

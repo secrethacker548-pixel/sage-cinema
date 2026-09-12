@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type InputEvent, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type InputEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { Captions, Gauge, Maximize2, Minimize2, MonitorPlay, Pause, Play, RotateCw, Search, Settings2, X } from 'lucide-react';
 import type Hls from 'hls.js';
 import type { UnifiedSource, UnifiedSubtitle } from '../lib/unifiedTypes';
@@ -75,6 +75,7 @@ export default function UnifiedPlayer({
   const [isSeeking, setIsSeeking] = useState(false);
   const playbackRateRef = useRef(1);
   const controlsTimerRef = useRef<number | null>(null);
+  const seekPointerIdRef = useRef<number | null>(null);
   const wasPlayingBeforeSeekRef = useRef(false);
 
   const playableSources = useMemo(
@@ -231,9 +232,9 @@ export default function UnifiedPlayer({
 
   const scheduleControlsHide = useCallback(() => {
     clearControlsTimer();
-    if (!isPlaying || showControls) return;
+    if (!isPlaying || showControls || isSeeking) return;
     controlsTimerRef.current = window.setTimeout(() => setControlsVisible(false), 2400);
-  }, [clearControlsTimer, isPlaying, showControls]);
+  }, [clearControlsTimer, isPlaying, isSeeking, showControls]);
 
   const revealControls = useCallback(() => {
     setControlsVisible(true);
@@ -259,10 +260,8 @@ export default function UnifiedPlayer({
     setShowControls((open) => !open);
   };
 
-  const handleStageClick = (event: { target: EventTarget | null }) => {
-    const target = event.target as HTMLElement | null;
-    if (target?.closest('button, input, a')) return;
-    togglePlayback();
+  const handleStageClick = () => {
+    revealControls();
   };
 
   useEffect(() => {
@@ -307,18 +306,49 @@ export default function UnifiedPlayer({
     seekTo(video.currentTime + seconds);
   }, [seekTo]);
 
-  const beginSeek = () => {
+  const getSeekTimeFromPointer = useCallback((event: ReactPointerEvent<HTMLInputElement>) => {
+    if (!safeDuration) return null;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (!bounds.width) return null;
+    const ratio = (event.clientX - bounds.left) / bounds.width;
+    return Math.min(Math.max(ratio * safeDuration, 0), safeDuration);
+  }, [safeDuration]);
+
+  const beginSeek = useCallback((event: ReactPointerEvent<HTMLInputElement>) => {
     if (!safeDuration || !videoRef.current) return;
+    seekPointerIdRef.current = event.pointerId;
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Some older mobile browsers do not expose pointer capture for range inputs.
+    }
+    const pointerTime = getSeekTimeFromPointer(event);
+    if (pointerTime !== null) seekTo(pointerTime);
     wasPlayingBeforeSeekRef.current = !videoRef.current.paused;
     setIsSeeking(true);
     if (wasPlayingBeforeSeekRef.current) videoRef.current.pause();
-  };
+  }, [getSeekTimeFromPointer, safeDuration, seekTo]);
 
-  const finishSeek = () => {
+  const handleSeekPointerMove = useCallback((event: ReactPointerEvent<HTMLInputElement>) => {
+    if (seekPointerIdRef.current !== event.pointerId) return;
+    const pointerTime = getSeekTimeFromPointer(event);
+    if (pointerTime !== null) seekTo(pointerTime);
+  }, [getSeekTimeFromPointer, seekTo]);
+
+  const finishSeek = useCallback((event?: ReactPointerEvent<HTMLInputElement>) => {
+    if (event && seekPointerIdRef.current !== event.pointerId) return;
+    if (event) {
+      try {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture may already have been released by the browser.
+      }
+    }
+    seekPointerIdRef.current = null;
     if (!isSeeking) return;
     setIsSeeking(false);
     if (wasPlayingBeforeSeekRef.current) videoRef.current?.play().catch(() => undefined);
-  };
+  }, [isSeeking]);
 
   const handleSeekInput = (event: FormEvent<HTMLInputElement> | InputEvent<HTMLInputElement>) => {
     seekTo(Number(event.currentTarget.value));
@@ -401,7 +431,6 @@ export default function UnifiedPlayer({
             setDuration(Number.isFinite(nextDuration) && nextDuration > 0 ? nextDuration : 0);
           }}
           onSeeked={(event) => {
-            finishSeek();
             if (progressKey) saveWatchProgress(progressKey, event.currentTarget.currentTime, event.currentTarget.duration);
           }}
           onError={() => {
@@ -473,9 +502,11 @@ export default function UnifiedPlayer({
               step="0.1"
               value={Math.min(currentTime, safeDuration)}
               onPointerDown={beginSeek}
+              onPointerMove={handleSeekPointerMove}
               onPointerUp={finishSeek}
               onPointerCancel={finishSeek}
-              onBlur={finishSeek}
+              onLostPointerCapture={finishSeek}
+              onBlur={() => finishSeek()}
               onInput={handleSeekInput}
               onChange={handleSeekInput}
               disabled={!safeDuration}
